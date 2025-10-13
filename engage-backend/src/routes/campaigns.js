@@ -79,6 +79,28 @@ router.post('/', async (req, res, next) => {
       });
     }
 
+    // Check if user has enough coins to afford at least one visit
+    const [users] = await db.query(
+      'SELECT coins FROM users WHERE id = ? LIMIT 1',
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: { code: 'USER_NOT_FOUND', message: 'User not found' },
+      });
+    }
+
+    const userCoins = users[0].coins;
+    if (userCoins < coinsPerVisit) {
+      return res.status(400).json({
+        error: {
+          code: 'INSUFFICIENT_COINS',
+          message: `You need at least ${coinsPerVisit} coins to create this campaign. You have ${userCoins} coins.`,
+        },
+      });
+    }
+
     // Insert campaign
     const [result] = await db.query(
       `INSERT INTO campaigns (user_id, title, url, coins_per_visit, daily_cap)

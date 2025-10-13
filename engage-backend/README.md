@@ -345,11 +345,22 @@ Content-Type: application/json
 }
 ```
 
+**Insufficient Coins (400):**
+```json
+{
+  "error": {
+    "code": "INSUFFICIENT_COINS",
+    "message": "You need at least 10 coins to create this campaign. You have 0 coins."
+  }
+}
+```
+
 Validation rules:
 - `title`: 3-120 characters
 - `url`: Valid HTTP/HTTPS URL, max 512 characters (no javascript:, data:, etc.)
 - `coins_per_visit`: Integer, 1-1000
 - `daily_cap`: Integer, 10-100000
+- User must have at least `coins_per_visit` coins to create campaign
 
 #### Update Campaign
 ```
@@ -553,7 +564,17 @@ Possible token errors:
 }
 ```
 
-Note: All coin transfers and visit recording happen in a database transaction for consistency.
+**Insufficient Owner Coins (400):**
+```json
+{
+  "error": {
+    "code": "INSUFFICIENT_OWNER_COINS",
+    "message": "Campaign owner has insufficient coins to pay for this visit"
+  }
+}
+```
+
+Note: All coin transfers and visit recording happen in a database transaction for consistency. The system checks that the campaign owner has sufficient coins before processing the visit.
 
 ## Error Format
 

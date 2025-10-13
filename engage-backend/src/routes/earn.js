@@ -227,7 +227,30 @@ router.post('/claim', async (req, res, next) => {
         });
       }
 
-      // Credit coins to user
+      // Check if campaign owner has enough coins
+      const [owner] = await connection.query(
+        'SELECT coins FROM users WHERE id = ? FOR UPDATE',
+        [campaign.user_id]
+      );
+
+      if (owner.length === 0 || owner[0].coins < campaign.coins_per_visit) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          error: {
+            code: 'INSUFFICIENT_OWNER_COINS',
+            message: 'Campaign owner has insufficient coins to pay for this visit',
+          },
+        });
+      }
+
+      // Deduct coins from campaign owner first
+      await connection.query(
+        'UPDATE users SET coins = coins - ? WHERE id = ?',
+        [campaign.coins_per_visit, campaign.user_id]
+      );
+
+      // Credit coins to visitor
       await connection.query(
         'UPDATE users SET coins = coins + ? WHERE id = ?',
         [campaign.coins_per_visit, userId]
@@ -244,12 +267,6 @@ router.post('/claim', async (req, res, next) => {
       const visitId = visitResult.insertId;
       const visitPublicId = generatePublicId('VIS', visitId);
       await connection.query('UPDATE visits SET public_id = ? WHERE id = ?', [visitPublicId, visitId]);
-
-      // Deduct coins from campaign owner
-      await connection.query(
-        'UPDATE users SET coins = coins - ? WHERE id = ?',
-        [campaign.coins_per_visit, campaign.user_id]
-      );
 
       // Get updated user coins
       const [users] = await connection.query(
