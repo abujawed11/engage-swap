@@ -78,7 +78,7 @@ export default function Earn() {
       <Card>
         <h2 className="text-2xl font-semibold">Earn</h2>
         <p className="mt-2 text-slate-600">
-          Visit a campaign and stay on this app for 15 seconds to earn coins.
+          Visit a campaign and stay on this app for 30 seconds to earn coins.
           Timer pauses if you switch tabs.
         </p>
       </Card>

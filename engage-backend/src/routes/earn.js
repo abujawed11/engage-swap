@@ -115,13 +115,36 @@ router.post('/start', async (req, res, next) => {
 });
 
 /**
+ * POST /earn/heartbeat
+ * Receive engagement metrics during visit (non-critical, just logging)
+ */
+router.post('/heartbeat', async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { token, activeTime, mouseMovements, verificationPassed } = req.body;
+
+    // Optional: Store metrics in database for analytics
+    // For now, just acknowledge receipt
+    console.log(`[Heartbeat] User ${userId}: ${activeTime}s, ${mouseMovements} moves, verified: ${verificationPassed}`);
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * POST /earn/claim
- * Claim visit reward with verification token
+ * Claim visit reward with verification token and engagement metrics
  */
 router.post('/claim', async (req, res, next) => {
   try {
     const userId = req.user.id;
     const token = req.body.token;
+    const activeTime = req.body.activeTime || 0;
+    const mouseMovements = req.body.mouseMovements || 0;
+    const verificationPassed = req.body.verificationPassed || false;
+    const rewardTier = req.body.rewardTier; // 'passive' or 'active'
 
     if (!token || typeof token !== 'string') {
       return res.status(422).json({
@@ -209,12 +232,18 @@ router.post('/claim', async (req, res, next) => {
         });
       }
 
+      // Calculate actual reward based on engagement tier
+      // Passive tier (20s, low activity) = 50% of coins
+      // Active tier (30s, high activity + verification) = 100% of coins
+      const rewardMultiplier = rewardTier === 'active' ? 1.0 : 0.5;
+      const coinsAwarded = Math.floor(campaign.coins_per_visit * rewardMultiplier);
+
       // Credit coins to visitor
       // Note: Campaign owner already paid upfront during campaign creation,
       // so we don't need to deduct from their balance here
       await connection.query(
         'UPDATE users SET coins = coins + ? WHERE id = ?',
-        [campaign.coins_per_visit, userId]
+        [coinsAwarded, userId]
       );
 
       // Increment clicks_served counter for the campaign
@@ -223,12 +252,12 @@ router.post('/claim', async (req, res, next) => {
         [campaignId]
       );
 
-      // Record visit
+      // Record visit with actual coins awarded
       const today = new Date().toISOString().slice(0, 10);
       const [visitResult] = await connection.query(
         `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, visit_date)
          VALUES (?, ?, ?, ?, ?)`,
-        [userId, campaignId, campaign.user_id, campaign.coins_per_visit, today]
+        [userId, campaignId, campaign.user_id, coinsAwarded, today]
       );
 
       // Generate and set public_id for visit
@@ -247,8 +276,9 @@ router.post('/claim', async (req, res, next) => {
 
       res.status(200).json({
         success: true,
-        coins_earned: campaign.coins_per_visit,
+        coins_earned: coinsAwarded,
         new_balance: users[0].coins,
+        reward_tier: rewardTier,
       });
     } catch (err) {
       await connection.rollback();

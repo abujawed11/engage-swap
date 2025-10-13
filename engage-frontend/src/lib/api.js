@@ -126,10 +126,17 @@ export const earn = {
     });
   },
 
-  async claimReward(token) {
+  async claimReward(token, metrics) {
     return apiCall("/earn/claim", {
       method: "POST",
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token, ...metrics }),
+    });
+  },
+
+  async sendHeartbeat(data) {
+    return apiCall("/earn/heartbeat", {
+      method: "POST",
+      body: JSON.stringify(data),
     });
   },
 };
