@@ -85,3 +85,51 @@ export const auth = {
     });
   },
 };
+
+// ─── Campaigns API ───
+export const campaigns = {
+  async listMine() {
+    return apiCall("/campaigns", { method: "GET" });
+  },
+
+  async create(payload) {
+    return apiCall("/campaigns", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async update(id, patch) {
+    return apiCall(`/campaigns/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  },
+
+  async remove(id) {
+    return apiCall(`/campaigns/${id}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+// ─── Earn API ───
+export const earn = {
+  async getQueue() {
+    return apiCall("/earn/queue", { method: "GET" });
+  },
+
+  async startVisit(campaignId) {
+    return apiCall("/earn/start", {
+      method: "POST",
+      body: JSON.stringify({ campaign_id: campaignId }),
+    });
+  },
+
+  async claimReward(token) {
+    return apiCall("/earn/claim", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+  },
+};

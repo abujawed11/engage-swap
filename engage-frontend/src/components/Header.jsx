@@ -7,7 +7,7 @@ const linkBase = "px-3 py-1 rounded hover:bg-slate-100";
 const active = "text-teal-700 font-medium";
 
 export default function Header() {
-  const { coins, user, setUser } = useApp();
+  const { user, setUser } = useApp();
   const navigate = useNavigate();
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -38,13 +38,15 @@ export default function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          {/* Coins display */}
-          <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm">
-            <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-70">
-              <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2m1 5v2h3v2h-3v2h3v2h-3v2h-2v-2H8v-2h3v-2H8V9h3V7z"/>
-            </svg>
-            <b>{coins}</b> coins
-          </span>
+          {/* Coins display - only show when logged in */}
+          {user && (
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-70">
+                <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2m1 5v2h3v2h-3v2h3v2h-3v2h-2v-2H8v-2h3v-2H8V9h3V7z"/>
+              </svg>
+              <b>{user.coins || 0}</b> coins
+            </span>
+          )}
 
           {/* Auth UI */}
           {!user ? (

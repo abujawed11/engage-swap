@@ -50,9 +50,20 @@ function getPool() {
   return pool;
 }
 
+/**
+ * Get a connection from the pool (for transactions)
+ */
+async function getConnection() {
+  if (!pool) {
+    throw new Error('Database pool not initialized');
+  }
+  return pool.getConnection();
+}
+
 module.exports = {
   createPool,
   pingDatabase,
   query,
   getPool,
+  getConnection,
 };

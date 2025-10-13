@@ -48,6 +48,8 @@ Run the migrations to create tables:
 ```bash
 mysql -u root -p engage_swap < migrations/001_create_users_table.sql
 mysql -u root -p engage_swap < migrations/002_add_email_verification.sql
+mysql -u root -p engage_swap < migrations/003_create_campaigns_table.sql
+mysql -u root -p engage_swap < migrations/004_create_visits_and_tokens.sql
 ```
 
 ## API Endpoints
@@ -245,6 +247,280 @@ Authorization: Bearer <token>
 }
 ```
 
+### Campaigns
+
+All campaign endpoints require authentication. Write operations (POST/PATCH/DELETE) are rate limited to 10 requests per minute per IP.
+
+#### List My Campaigns
+```
+GET /campaigns
+Authorization: Bearer <token>
+```
+
+**Success (200):**
+```json
+{
+  "campaigns": [
+    {
+      "id": 1,
+      "title": "My Product Landing",
+      "url": "https://example.com",
+      "coins_per_visit": 10,
+      "daily_cap": 100,
+      "is_paused": 0,
+      "created_at": "2025-01-15T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+#### Create Campaign
+```
+POST /campaigns
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "title": "My Product Landing",
+  "url": "https://example.com",
+  "coins_per_visit": 10,
+  "daily_cap": 100
+}
+```
+
+**Success (201):**
+```json
+{
+  "campaign": {
+    "id": 1,
+    "title": "My Product Landing",
+    "url": "https://example.com",
+    "coins_per_visit": 10,
+    "daily_cap": 100,
+    "is_paused": 0,
+    "created_at": "2025-01-15T10:30:00.000Z"
+  }
+}
+```
+
+**Validation Error (422):**
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Title must be at least 3 characters"
+  }
+}
+```
+
+Validation rules:
+- `title`: 3-120 characters
+- `url`: Valid HTTP/HTTPS URL, max 512 characters (no javascript:, data:, etc.)
+- `coins_per_visit`: Integer, 1-1000
+- `daily_cap`: Integer, 10-100000
+
+#### Update Campaign
+```
+PATCH /campaigns/:id
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "title": "Updated Title",
+  "is_paused": 1
+}
+```
+
+**Success (200):**
+```json
+{
+  "campaign": {
+    "id": 1,
+    "title": "Updated Title",
+    "url": "https://example.com",
+    "coins_per_visit": 10,
+    "daily_cap": 100,
+    "is_paused": 1,
+    "created_at": "2025-01-15T10:30:00.000Z"
+  }
+}
+```
+
+**Not Found (404):**
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Campaign not found"
+  }
+}
+```
+
+Note: Can only update campaigns you own. All fields are optional.
+
+#### Delete Campaign
+```
+DELETE /campaigns/:id
+Authorization: Bearer <token>
+```
+
+**Success (200):**
+```json
+{
+  "ok": true
+}
+```
+
+**Not Found (404):**
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Campaign not found"
+  }
+}
+```
+
+Note: Can only delete campaigns you own.
+
+### Earn
+
+#### Get Earn Queue
+```
+GET /earn/queue
+Authorization: Bearer <token>
+```
+
+Returns up to 10 eligible campaigns for the authenticated user to visit. Excludes:
+- Campaigns owned by the user
+- Paused campaigns
+
+**Success (200):**
+```json
+{
+  "campaigns": [
+    {
+      "id": 2,
+      "title": "Another Product",
+      "url": "https://another.com",
+      "coins_per_visit": 15,
+      "daily_cap": 50,
+      "created_at": "2025-01-15T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+#### Start Visit (Get Verification Token)
+```
+POST /earn/start
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "campaign_id": 2
+}
+```
+
+Generates a time-bound verification token for visiting a campaign. Validates:
+- Campaign exists and is active
+- User doesn't own the campaign
+- Campaign hasn't reached daily cap
+
+**Success (200):**
+```json
+{
+  "token": "a1b2c3d4e5f6...",
+  "expires_at": "2025-01-15T10:32:00.000Z",
+  "coins_per_visit": 15
+}
+```
+
+**Campaign Paused (400):**
+```json
+{
+  "error": {
+    "code": "CAMPAIGN_PAUSED",
+    "message": "Campaign is paused"
+  }
+}
+```
+
+**Daily Cap Reached (400):**
+```json
+{
+  "error": {
+    "code": "DAILY_CAP_REACHED",
+    "message": "Campaign has reached its daily cap"
+  }
+}
+```
+
+**Cannot Visit Own Campaign (400):**
+```json
+{
+  "error": {
+    "code": "INVALID_ACTION",
+    "message": "Cannot visit your own campaign"
+  }
+}
+```
+
+Note: Token expires in 2 minutes and can only be used once.
+
+#### Claim Visit Reward
+```
+POST /earn/claim
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "token": "a1b2c3d4e5f6..."
+}
+```
+
+Claims the reward for a verified visit. This endpoint:
+- Validates the verification token
+- Credits coins to the visitor
+- Deducts coins from campaign owner
+- Records the visit atomically
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "coins_earned": 15,
+  "new_balance": 115
+}
+```
+
+**Invalid Token (400):**
+```json
+{
+  "error": {
+    "code": "INVALID_TOKEN",
+    "message": "Invalid or expired token"
+  }
+}
+```
+
+Possible token errors:
+- "Invalid or expired token" - Token doesn't exist or has expired
+- "Token already used" - Token was already consumed
+- "Token does not belong to this user" - Token belongs to different user
+
+**Daily Cap Reached (400):**
+```json
+{
+  "error": {
+    "code": "DAILY_CAP_REACHED",
+    "message": "Campaign daily cap reached"
+  }
+}
+```
+
+Note: All coin transfers and visit recording happen in a database transaction for consistency.
+
 ## Error Format
 
 All errors follow this format:
@@ -259,5 +535,8 @@ All errors follow this format:
 
 Common error codes:
 - `NOT_FOUND` - Route not found (404)
+- `VALIDATION_ERROR` - Invalid input (422)
+- `UNAUTHORIZED` - Missing or invalid token (401)
+- `RATE_LIMIT_EXCEEDED` - Too many requests (429)
 - `DB_DOWN` - Database unavailable (503)
 - `INTERNAL` - Internal server error (500)

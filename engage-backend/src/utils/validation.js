@@ -103,9 +103,104 @@ function sanitizeInput(input, maxLength = 255) {
   return input.trim().slice(0, maxLength);
 }
 
+/**
+ * Validate URL - only http/https schemes allowed
+ */
+function validateUrl(url) {
+  if (!url || typeof url !== 'string') {
+    return 'URL is required';
+  }
+
+  const trimmed = url.trim();
+
+  if (trimmed.length > 512) {
+    return 'URL is too long (max 512 characters)';
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+
+    // Only allow http and https
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return 'URL must use http or https protocol';
+    }
+
+    return null; // valid
+  } catch (err) {
+    return 'Invalid URL format';
+  }
+}
+
+/**
+ * Validate campaign title
+ */
+function validateCampaignTitle(title) {
+  if (!title || typeof title !== 'string') {
+    return 'Title is required';
+  }
+
+  const trimmed = title.trim();
+
+  if (trimmed.length < 3) {
+    return 'Title must be at least 3 characters';
+  }
+
+  if (trimmed.length > 120) {
+    return 'Title must not exceed 120 characters';
+  }
+
+  return null; // valid
+}
+
+/**
+ * Validate coins per visit
+ */
+function validateCoinsPerVisit(coins) {
+  const num = Number(coins);
+
+  if (!Number.isInteger(num)) {
+    return 'Coins per visit must be a whole number';
+  }
+
+  if (num < 1) {
+    return 'Coins per visit must be at least 1';
+  }
+
+  if (num > 1000) {
+    return 'Coins per visit cannot exceed 1000';
+  }
+
+  return null; // valid
+}
+
+/**
+ * Validate daily cap
+ */
+function validateDailyCap(cap) {
+  const num = Number(cap);
+
+  if (!Number.isInteger(num)) {
+    return 'Daily cap must be a whole number';
+  }
+
+  if (num < 10) {
+    return 'Daily cap must be at least 10';
+  }
+
+  if (num > 100000) {
+    return 'Daily cap cannot exceed 100,000';
+  }
+
+  return null; // valid
+}
+
 module.exports = {
   validateUsername,
   validateEmail,
   validatePassword,
   sanitizeInput,
+  validateUrl,
+  validateCampaignTitle,
+  validateCoinsPerVisit,
+  validateDailyCap,
 };

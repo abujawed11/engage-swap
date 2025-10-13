@@ -1,69 +1,101 @@
 // src/pages/Earn.jsx
-import { useMemo, useState } from "react";
-import { useApp } from "../lib/appState";
+import { useState, useEffect } from "react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import VisitModal from "../components/VisitModal";
+import { earn as earnAPI } from "../lib/api";
+import { useApp } from "../lib/appState";
 
 const COOLDOWN_MS = 5000; // 5 seconds
 
 export default function Earn() {
-  const { campaigns, creditVisit } = useApp();
+  const { user, setUser } = useApp();
+  const [campaigns, setCampaigns] = useState([]);
   const [activeCampaign, setActiveCampaign] = useState(null);
+  const [verificationToken, setVerificationToken] = useState(null);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [showToast, setShowToast] = useState(false);
   const [earnedCoins, setEarnedCoins] = useState(0);
+  const [error, setError] = useState("");
 
-  // Fair rotation: pick the eligible campaign with the oldest lastServedAt
-  const nextCampaign = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+  // Fetch earn queue on mount
+  useEffect(() => {
+    fetchQueue();
+  }, []);
 
-    // Filter eligible campaigns: not paused and not at daily cap
-    const eligible = campaigns.filter((c) => {
-      if (c.isPaused) return false;
-      const servedToday = c.servedDay === today ? c.servedToday : 0;
-      return servedToday < c.dailyCap;
-    });
-
-    if (eligible.length === 0) return null;
-
-    // Pick the one with oldest lastServedAt (undefined = never served = oldest)
-    return eligible.reduce((oldest, current) => {
-      // undefined is treated as oldest (0)
-      const oldestTime = oldest.lastServedAt ?? 0;
-      const currentTime = current.lastServedAt ?? 0;
-      return currentTime < oldestTime ? current : oldest;
-    });
-  }, [campaigns]);
-
-  const handleVisit = (campaign) => {
-    // Open campaign URL in new tab
-    window.open(campaign.url, "_blank", "noreferrer");
-
-    // Show verification modal
-    setActiveCampaign(campaign);
+  const fetchQueue = async () => {
+    try {
+      const data = await earnAPI.getQueue();
+      setCampaigns(data.campaigns || []);
+    } catch (err) {
+      console.error("Failed to fetch earn queue:", err);
+    }
   };
 
-  const handleClaim = () => {
-    if (!activeCampaign) return;
+  // Get the first campaign (for now, just show one at a time)
+  const nextCampaign = campaigns.length > 0 ? campaigns[0] : null;
 
-    // Credit the visit
-    creditVisit(activeCampaign.id);
+  const handleVisit = async (campaign) => {
+    setError("");
 
-    // Show toast notification
-    setEarnedCoins(activeCampaign.coinsPerVisit);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+    try {
+      // Request verification token from server
+      const data = await earnAPI.startVisit(campaign.id);
 
-    // Set cooldown
-    setCooldownUntil(Date.now() + COOLDOWN_MS);
+      // Open campaign URL in new tab
+      window.open(campaign.url, "_blank", "noreferrer");
 
-    // Close modal
-    setActiveCampaign(null);
+      // Store token and show verification modal
+      setVerificationToken(data.token);
+      setActiveCampaign(campaign);
+    } catch (err) {
+      setError(err.message);
+      // Refresh queue in case campaign is no longer available
+      fetchQueue();
+    }
+  };
+
+  const handleClaim = async () => {
+    if (!activeCampaign || !verificationToken) return;
+
+    setError("");
+
+    try {
+      // Claim reward with verification token
+      const data = await earnAPI.claimReward(verificationToken);
+
+      // Update user's coin balance
+      if (user) {
+        setUser({ ...user, coins: data.new_balance });
+      }
+
+      // Show toast notification
+      setEarnedCoins(data.coins_earned);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+
+      // Set cooldown
+      setCooldownUntil(Date.now() + COOLDOWN_MS);
+
+      // Close modal
+      setActiveCampaign(null);
+      setVerificationToken(null);
+
+      // Refresh queue
+      fetchQueue();
+    } catch (err) {
+      setError(err.message);
+      // Close modal on error
+      setActiveCampaign(null);
+      setVerificationToken(null);
+      // Refresh queue
+      fetchQueue();
+    }
   };
 
   const handleCancel = () => {
     setActiveCampaign(null);
+    setVerificationToken(null);
   };
 
   const isInCooldown = Date.now() < cooldownUntil;
@@ -78,6 +110,14 @@ export default function Earn() {
           Timer pauses if you switch tabs.
         </p>
       </Card>
+
+      {error && (
+        <Card>
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            {error}
+          </p>
+        </Card>
+      )}
 
       {!nextCampaign ? (
         <Card>
@@ -99,8 +139,7 @@ export default function Earn() {
                 {nextCampaign.url}
               </a>
               <div className="mt-1 text-sm text-slate-500">
-                +{nextCampaign.coinsPerVisit} coins • Daily cap{" "}
-                {nextCampaign.servedToday ?? 0}/{nextCampaign.dailyCap}
+                +{nextCampaign.coins_per_visit} coins • Daily cap {nextCampaign.daily_cap}
               </div>
             </div>
 
