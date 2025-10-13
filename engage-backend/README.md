@@ -50,6 +50,35 @@ mysql -u root -p engage_swap < migrations/001_create_users_table.sql
 mysql -u root -p engage_swap < migrations/002_add_email_verification.sql
 mysql -u root -p engage_swap < migrations/003_create_campaigns_table.sql
 mysql -u root -p engage_swap < migrations/004_create_visits_and_tokens.sql
+mysql -u root -p engage_swap < migrations/005_add_public_id_users.sql
+mysql -u root -p engage_swap < migrations/006_add_public_id_campaigns.sql
+mysql -u root -p engage_swap < migrations/007_add_public_id_visits.sql
+```
+
+## Public IDs
+
+All main tables (users, campaigns, visits) include a `public_id` field in addition to the numeric `id`:
+
+- **Users**: Format `USR0001`, `USR0002`, etc.
+- **Campaigns**: Format `CMP0001`, `CMP0002`, etc.
+- **Visits**: Format `VIS0001`, `VIS0002`, etc.
+
+Public IDs are:
+- **Generated automatically** using MySQL STORED generated columns
+- **Human-readable** and easy to reference in support/debugging
+- **Unique** with a unique index to prevent duplicates
+- **Backward compatible** - internal logic uses numeric `id`, external APIs expose both
+
+Example:
+```sql
+-- Users table
+id: 1          → public_id: "USR0001"
+id: 42         → public_id: "USR0042"
+id: 12345      → public_id: "USR12345"
+
+-- Campaigns table
+id: 1          → public_id: "CMP0001"
+id: 99         → public_id: "CMP0099"
 ```
 
 ## API Endpoints
@@ -230,6 +259,7 @@ Authorization: Bearer <token>
 ```json
 {
   "id": 1,
+  "public_id": "USR0001",
   "username": "johndoe",
   "email": "john@example.com",
   "coins": 0,
@@ -263,6 +293,7 @@ Authorization: Bearer <token>
   "campaigns": [
     {
       "id": 1,
+      "public_id": "CMP0001",
       "title": "My Product Landing",
       "url": "https://example.com",
       "coins_per_visit": 10,
@@ -293,6 +324,7 @@ Content-Type: application/json
 {
   "campaign": {
     "id": 1,
+    "public_id": "CMP0001",
     "title": "My Product Landing",
     "url": "https://example.com",
     "coins_per_visit": 10,
@@ -336,6 +368,7 @@ Content-Type: application/json
 {
   "campaign": {
     "id": 1,
+    "public_id": "CMP0001",
     "title": "Updated Title",
     "url": "https://example.com",
     "coins_per_visit": 10,
@@ -401,6 +434,7 @@ Returns up to 10 eligible campaigns for the authenticated user to visit. Exclude
   "campaigns": [
     {
       "id": 2,
+      "public_id": "CMP0002",
       "title": "Another Product",
       "url": "https://another.com",
       "coins_per_visit": 15,

@@ -1,5 +1,4 @@
 -- Create visit verification tokens table
--- Tokens are short-lived (1-2 min) and single-use
 CREATE TABLE visit_tokens (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   token VARCHAR(64) NOT NULL UNIQUE,
@@ -16,16 +15,16 @@ CREATE TABLE visit_tokens (
   INDEX idx_user_campaign (user_id, campaign_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Create visits table to track verified visits
+-- Create visits table with simple public_id column
 CREATE TABLE visits (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  public_id VARCHAR(20) AS (CONCAT('VIS', LPAD(id, 4, '0'))) STORED UNIQUE,
+  public_id VARCHAR(20) UNIQUE,
   user_id BIGINT NOT NULL,
   campaign_id BIGINT NOT NULL,
   campaign_owner_id BIGINT NOT NULL,
   coins_earned INT NOT NULL,
   visited_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  visit_date DATE NOT NULL, -- For daily cap tracking
+  visit_date DATE NOT NULL,
 
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,

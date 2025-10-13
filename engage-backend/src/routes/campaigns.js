@@ -7,6 +7,7 @@ const {
   validateCoinsPerVisit,
   validateDailyCap,
 } = require('../utils/validation');
+const { generatePublicId } = require('../utils/publicId');
 
 const router = express.Router();
 
@@ -19,7 +20,7 @@ router.get('/', async (req, res, next) => {
     const userId = req.user.id;
 
     const [campaigns] = await db.query(
-      `SELECT id, title, url, coins_per_visit, daily_cap, is_paused, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, daily_cap, is_paused, created_at
        FROM campaigns
        WHERE user_id = ?
        ORDER BY created_at DESC`,
@@ -85,12 +86,18 @@ router.post('/', async (req, res, next) => {
       [userId, title, url, coinsPerVisit, dailyCap]
     );
 
+    const campaignId = result.insertId;
+
+    // Generate and set public_id
+    const publicId = generatePublicId('CMP', campaignId);
+    await db.query('UPDATE campaigns SET public_id = ? WHERE id = ?', [publicId, campaignId]);
+
     // Fetch created campaign
     const [campaigns] = await db.query(
-      `SELECT id, title, url, coins_per_visit, daily_cap, is_paused, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, daily_cap, is_paused, created_at
        FROM campaigns
        WHERE id = ?`,
-      [result.insertId]
+      [campaignId]
     );
 
     res.status(201).json({ campaign: campaigns[0] });
@@ -206,7 +213,7 @@ router.patch('/:id', async (req, res, next) => {
 
     // Fetch updated campaign
     const [campaigns] = await db.query(
-      `SELECT id, title, url, coins_per_visit, daily_cap, is_paused, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, daily_cap, is_paused, created_at
        FROM campaigns
        WHERE id = ?`,
       [campaignId]

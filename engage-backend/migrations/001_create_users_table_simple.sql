@@ -1,7 +1,7 @@
--- Create users table
+-- Create users table with simple public_id column
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  public_id VARCHAR(20) AS (CONCAT('USR', LPAD(id, 4, '0'))) STORED UNIQUE,
+  public_id VARCHAR(20) UNIQUE,
   username VARCHAR(32) NOT NULL,
   username_lower VARCHAR(32) NOT NULL UNIQUE,
   email VARCHAR(191) NOT NULL,
@@ -16,6 +16,4 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Notes:
--- - username_lower and email_lower are canonical lowercase fields for case-insensitive uniqueness
--- - UNIQUE constraints on lowercase fields prevent duplicates regardless of case
--- - Original username and email fields preserve user's preferred casing for display
+-- - public_id will be set by application code after insert

@@ -1,7 +1,7 @@
--- Create campaigns table
+-- Create campaigns table with public_id as regular column
 CREATE TABLE campaigns (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  public_id VARCHAR(20) AS (CONCAT('CMP', LPAD(id, 4, '0'))) STORED UNIQUE,
+  public_id VARCHAR(20) UNIQUE,
   user_id BIGINT NOT NULL,
   title VARCHAR(120) NOT NULL,
   url VARCHAR(512) NOT NULL,
@@ -14,3 +14,15 @@ CREATE TABLE campaigns (
   INDEX idx_user_id (user_id),
   INDEX idx_is_paused (is_paused)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create trigger to auto-generate public_id after insert
+DELIMITER $$
+CREATE TRIGGER campaigns_after_insert
+AFTER INSERT ON campaigns
+FOR EACH ROW
+BEGIN
+  UPDATE campaigns
+  SET public_id = CONCAT('CMP', LPAD(NEW.id, 4, '0'))
+  WHERE id = NEW.id AND public_id IS NULL;
+END$$
+DELIMITER ;

@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { createVisitToken, verifyAndConsumeToken } = require('../utils/visitToken');
+const { generatePublicId } = require('../utils/publicId');
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.get('/queue', async (req, res, next) => {
     const userId = req.user.id;
 
     const [campaigns] = await db.query(
-      `SELECT id, title, url, coins_per_visit, daily_cap, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, daily_cap, created_at
        FROM campaigns
        WHERE user_id != ? AND is_paused = 0
        ORDER BY created_at DESC
@@ -233,11 +234,16 @@ router.post('/claim', async (req, res, next) => {
       );
 
       // Record visit
-      await connection.query(
+      const [visitResult] = await connection.query(
         `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, visit_date)
          VALUES (?, ?, ?, ?, ?)`,
         [userId, campaignId, campaign.user_id, campaign.coins_per_visit, today]
       );
+
+      // Generate and set public_id for visit
+      const visitId = visitResult.insertId;
+      const visitPublicId = generatePublicId('VIS', visitId);
+      await connection.query('UPDATE visits SET public_id = ? WHERE id = ?', [visitPublicId, visitId]);
 
       // Deduct coins from campaign owner
       await connection.query(

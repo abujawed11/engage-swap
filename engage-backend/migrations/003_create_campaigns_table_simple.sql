@@ -1,7 +1,7 @@
--- Create campaigns table
+-- Create campaigns table with simple public_id column
 CREATE TABLE campaigns (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  public_id VARCHAR(20) AS (CONCAT('CMP', LPAD(id, 4, '0'))) STORED UNIQUE,
+  public_id VARCHAR(20) UNIQUE,
   user_id BIGINT NOT NULL,
   title VARCHAR(120) NOT NULL,
   url VARCHAR(512) NOT NULL,

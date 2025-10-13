@@ -10,6 +10,7 @@ const {
 } = require('../utils/validation');
 const { createOTP, canResendOTP, verifyOTP } = require('../utils/otp');
 const { sendVerificationEmail } = require('../utils/mailer');
+const { generatePublicId } = require('../utils/publicId');
 
 const router = express.Router();
 
@@ -78,6 +79,10 @@ router.post('/signup', async (req, res, next) => {
     );
 
     const userId = result.insertId;
+
+    // Generate and set public_id
+    const publicId = generatePublicId('USR', userId);
+    await db.query('UPDATE users SET public_id = ? WHERE id = ?', [publicId, userId]);
 
     // Check if user can receive OTP (throttle check)
     const canSend = await canResendOTP(userId);

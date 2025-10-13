@@ -12,7 +12,7 @@ router.get('/me', authRequired, async (req, res, next) => {
   try {
     // Fetch user from database
     const [users] = await db.query(
-      `SELECT id, username, email, coins, is_admin
+      `SELECT id, public_id, username, email, coins, is_admin
        FROM users
        WHERE id = ?
        LIMIT 1`,
@@ -32,6 +32,7 @@ router.get('/me', authRequired, async (req, res, next) => {
 
     res.status(200).json({
       id: user.id,
+      public_id: user.public_id,
       username: user.username,
       email: user.email,
       coins: user.coins,

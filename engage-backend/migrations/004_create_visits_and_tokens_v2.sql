@@ -16,10 +16,10 @@ CREATE TABLE visit_tokens (
   INDEX idx_user_campaign (user_id, campaign_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Create visits table to track verified visits
+-- Create visits table to track verified visits with public_id
 CREATE TABLE visits (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  public_id VARCHAR(20) AS (CONCAT('VIS', LPAD(id, 4, '0'))) STORED UNIQUE,
+  public_id VARCHAR(20) UNIQUE,
   user_id BIGINT NOT NULL,
   campaign_id BIGINT NOT NULL,
   campaign_owner_id BIGINT NOT NULL,
@@ -34,3 +34,15 @@ CREATE TABLE visits (
   INDEX idx_campaign (campaign_id),
   INDEX idx_campaign_date (campaign_id, visit_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create trigger to auto-generate public_id after insert
+DELIMITER $$
+CREATE TRIGGER visits_after_insert
+AFTER INSERT ON visits
+FOR EACH ROW
+BEGIN
+  UPDATE visits
+  SET public_id = CONCAT('VIS', LPAD(NEW.id, 4, '0'))
+  WHERE id = NEW.id AND public_id IS NULL;
+END$$
+DELIMITER ;
