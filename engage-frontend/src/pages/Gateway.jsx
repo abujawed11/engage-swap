@@ -53,10 +53,15 @@ export default function Gateway() {
     }
   }, [campaign, verificationToken, navigate]);
 
-  // Open popup automatically on mount
+  // Open popup automatically on mount - with small delay to avoid race conditions
   useEffect(() => {
     if (campaign && !popupRef.current) {
-      openPopup();
+      // Small delay to ensure page is fully loaded
+      const timer = setTimeout(() => {
+        openPopup();
+      }, 100);
+
+      return () => clearTimeout(timer);
     }
 
     // Cleanup: close popup on unmount
@@ -87,6 +92,8 @@ export default function Gateway() {
       if (popupRef.current) {
         setPopupOpen(true);
         setPopupClosed(false);
+        // When popup opens, user's focus moves to it → start timer
+        setIsPaused(false);
         startPopupMonitoring();
       } else {
         setError("Popup was blocked. Please allow popups for this site and try again.");
@@ -365,10 +372,10 @@ export default function Gateway() {
 
             {/* Status Message */}
             <div className="text-center">
-              {isPaused && popupClosed && (
+              {isPaused && popupClosed && !isComplete && (
                 <p className="text-red-700 font-medium">⚠️ Popup closed - Please reopen to continue</p>
               )}
-              {isPaused && !popupClosed && popupOpen && (
+              {isPaused && !popupClosed && popupOpen && !isComplete && (
                 <p className="text-amber-700 font-medium">⏸ Paused - Switch to the popup window to start counting</p>
               )}
               {!isPaused && !isComplete && popupOpen && (
@@ -384,7 +391,7 @@ export default function Gateway() {
         </Card>
 
         {/* Activity Tracking Card */}
-        <Card>
+        {/* <Card>
           <h3 className="text-lg font-semibold mb-3">Activity Tracking</h3>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-3 bg-slate-50 rounded-lg">
@@ -413,26 +420,28 @@ export default function Gateway() {
               </p>
             </div>
           )}
-        </Card>
+        </Card> */}
 
         {/* Popup Control Card */}
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Campaign Popup</h3>
-              <p className="text-sm text-slate-600 mt-1">
-                {popupOpen && !popupClosed ? (
-                  <span className="text-green-600">✓ Popup is open and being tracked</span>
-                ) : (
-                  <span className="text-red-600">✗ Popup is closed</span>
-                )}
-              </p>
+        {!isComplete && (
+          <Card>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Campaign Popup</h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  {popupOpen && !popupClosed ? (
+                    <span className="text-green-600">✓ Popup is open and being tracked</span>
+                  ) : (
+                    <span className="text-red-600">✗ Popup is closed</span>
+                  )}
+                </p>
+              </div>
+              <Button onClick={handleReopenPopup} className="bg-blue-600 hover:bg-blue-700">
+                {popupOpen && !popupClosed ? "Focus Popup" : "Reopen Popup"}
+              </Button>
             </div>
-            <Button onClick={handleReopenPopup} className="bg-blue-600 hover:bg-blue-700">
-              {popupOpen && !popupClosed ? "Focus Popup" : "Reopen Popup"}
-            </Button>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         {/* Error Display */}
         {error && (
