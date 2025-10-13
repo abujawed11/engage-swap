@@ -21,8 +21,8 @@ export default function Promote() {
   const [form, setForm] = useState({
     title: "",
     url: "",
-    coins_per_visit: 10,
-    daily_cap: 50,
+    coins_per_visit: 1,
+    total_clicks: 20,
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -55,14 +55,14 @@ export default function Promote() {
 
     // Basic validation
     if (!form.title.trim()) return setError("Title is required.");
-    if (!isValidUrl(form.url)) return setError("Enter a valid URL starting with http(s)://");
+    if (!isValidUrl(form.url)) return setError("Enter a valid URL starting with https://");
     if (form.coins_per_visit < 1) return setError("Coins per visit must be at least 1.");
-    if (form.daily_cap < 10) return setError("Daily cap must be at least 10.");
+    if (form.total_clicks < 1) return setError("Total clicks must be at least 1.");
 
     setLoading(true);
 
     try {
-      const totalCost = form.coins_per_visit * form.daily_cap;
+      const totalCost = form.coins_per_visit * form.total_clicks;
 
       await campaignsAPI.create(form);
 
@@ -77,7 +77,7 @@ export default function Promote() {
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
 
-      setForm({ title: "", url: "", coins_per_visit: 10, daily_cap: 50 });
+      setForm({ title: "", url: "", coins_per_visit: 1, total_clicks: 20 });
       await fetchCampaigns();
     } catch (err) {
       setError(err.message);
@@ -150,13 +150,13 @@ export default function Promote() {
               />
             </div>
             <div>
-              <Label htmlFor="daily_cap">Daily cap</Label>
+              <Label htmlFor="total_clicks">No of clicks</Label>
               <Input
-                id="daily_cap"
-                name="daily_cap"
+                id="total_clicks"
+                name="total_clicks"
                 type="number"
-                min={10}
-                value={form.daily_cap}
+                min={1}
+                value={form.total_clicks}
                 onChange={onChange}
               />
             </div>
@@ -199,7 +199,14 @@ export default function Promote() {
                         {c.url}
                       </a>
                       <div className="mt-1 text-xs text-slate-500">
-                        {c.coins_per_visit} coins/visit • Daily cap {c.daily_cap}
+                        {c.coins_per_visit} coins/visit • {c.clicks_served}/{c.total_clicks} clicks
+                      </div>
+                      {/* Progress bar */}
+                      <div className="mt-2 w-full bg-slate-200 rounded-full h-2">
+                        <div
+                          className="bg-teal-600 h-2 rounded-full transition-all"
+                          style={{ width: `${(c.clicks_served / c.total_clicks) * 100}%` }}
+                        />
                       </div>
                     </div>
                     <div className="flex items-start gap-2 shrink-0">

@@ -71,10 +71,10 @@ router.post('/signup', async (req, res, next) => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-    // Insert user (unverified)
+    // Insert user (unverified) with 20 welcome coins
     const [result] = await db.query(
       `INSERT INTO users (username, username_lower, email, email_lower, password_hash, coins, is_admin, email_verified_at)
-       VALUES (?, ?, ?, ?, ?, 0, 0, NULL)`,
+       VALUES (?, ?, ?, ?, ?, 20, 0, NULL)`,
       [username, usernameLower, email, emailLower, passwordHash]
     );
 

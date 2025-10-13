@@ -19,9 +19,9 @@ router.get('/queue', async (req, res, next) => {
     const userId = req.user.id;
 
     const [campaigns] = await db.query(
-      `SELECT id, public_id, title, url, coins_per_visit, daily_cap, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, total_clicks, clicks_served, created_at
        FROM campaigns
-       WHERE user_id != ? AND is_paused = 0
+       WHERE user_id != ? AND is_paused = 0 AND clicks_served < total_clicks
        ORDER BY created_at DESC
        LIMIT 10`,
       [userId]
@@ -53,7 +53,7 @@ router.post('/start', async (req, res, next) => {
 
     // Fetch campaign
     const [campaigns] = await db.query(
-      `SELECT id, user_id, is_paused, coins_per_visit, daily_cap
+      `SELECT id, user_id, is_paused, coins_per_visit, total_clicks, clicks_served
        FROM campaigns
        WHERE id = ?
        LIMIT 1`,
@@ -91,21 +91,12 @@ router.post('/start', async (req, res, next) => {
       });
     }
 
-    // Check daily cap
-    const today = new Date().toISOString().slice(0, 10);
-    const [visits] = await db.query(
-      `SELECT COUNT(*) as count
-       FROM visits
-       WHERE campaign_id = ? AND visit_date = ?`,
-      [campaignId, today]
-    );
-
-    const visitsToday = visits[0].count;
-    if (visitsToday >= campaign.daily_cap) {
+    // Check if campaign has reached total clicks limit
+    if (campaign.clicks_served >= campaign.total_clicks) {
       return res.status(400).json({
         error: {
-          code: 'DAILY_CAP_REACHED',
-          message: 'Campaign has reached its daily cap',
+          code: 'CLICKS_LIMIT_REACHED',
+          message: 'Campaign has reached its total clicks limit',
         },
       });
     }
@@ -162,7 +153,7 @@ router.post('/claim', async (req, res, next) => {
     try {
       // Re-fetch campaign with FOR UPDATE lock
       const [campaigns] = await connection.query(
-        `SELECT id, user_id, is_paused, coins_per_visit, daily_cap
+        `SELECT id, user_id, is_paused, coins_per_visit, total_clicks, clicks_served
          FROM campaigns
          WHERE id = ?
          FOR UPDATE`,
@@ -206,23 +197,14 @@ router.post('/claim', async (req, res, next) => {
         });
       }
 
-      // Check daily cap again
-      const today = new Date().toISOString().slice(0, 10);
-      const [visits] = await connection.query(
-        `SELECT COUNT(*) as count
-         FROM visits
-         WHERE campaign_id = ? AND visit_date = ?`,
-        [campaignId, today]
-      );
-
-      const visitsToday = visits[0].count;
-      if (visitsToday >= campaign.daily_cap) {
+      // Check if campaign has reached total clicks limit
+      if (campaign.clicks_served >= campaign.total_clicks) {
         await connection.rollback();
         connection.release();
         return res.status(400).json({
           error: {
-            code: 'DAILY_CAP_REACHED',
-            message: 'Campaign daily cap reached',
+            code: 'CLICKS_LIMIT_REACHED',
+            message: 'Campaign has reached its total clicks limit',
           },
         });
       }
@@ -235,7 +217,14 @@ router.post('/claim', async (req, res, next) => {
         [campaign.coins_per_visit, userId]
       );
 
+      // Increment clicks_served counter for the campaign
+      await connection.query(
+        'UPDATE campaigns SET clicks_served = clicks_served + 1 WHERE id = ?',
+        [campaignId]
+      );
+
       // Record visit
+      const today = new Date().toISOString().slice(0, 10);
       const [visitResult] = await connection.query(
         `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, visit_date)
          VALUES (?, ?, ?, ?, ?)`,

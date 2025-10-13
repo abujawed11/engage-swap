@@ -111,7 +111,14 @@ export default function Earn() {
                 {nextCampaign.url}
               </a>
               <div className="mt-1 text-sm text-slate-500">
-                +{nextCampaign.coins_per_visit} coins • Daily cap {nextCampaign.daily_cap}
+                +{nextCampaign.coins_per_visit} coins • {nextCampaign.clicks_served}/{nextCampaign.total_clicks} clicks completed
+              </div>
+              {/* Progress bar */}
+              <div className="mt-2 w-full bg-slate-200 rounded-full h-2">
+                <div
+                  className="bg-teal-600 h-2 rounded-full transition-all"
+                  style={{ width: `${(nextCampaign.clicks_served / nextCampaign.total_clicks) * 100}%` }}
+                />
               </div>
             </div>
 

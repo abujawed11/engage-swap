@@ -174,21 +174,21 @@ function validateCoinsPerVisit(coins) {
 }
 
 /**
- * Validate daily cap
+ * Validate total clicks (formerly daily cap)
  */
 function validateDailyCap(cap) {
   const num = Number(cap);
 
   if (!Number.isInteger(num)) {
-    return 'Daily cap must be a whole number';
+    return 'Total clicks must be a whole number';
   }
 
-  if (num < 10) {
-    return 'Daily cap must be at least 10';
+  if (num < 1) {
+    return 'Total clicks must be at least 1';
   }
 
   if (num > 100000) {
-    return 'Daily cap cannot exceed 100,000';
+    return 'Total clicks cannot exceed 100,000';
   }
 
   return null; // valid

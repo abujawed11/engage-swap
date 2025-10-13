@@ -20,7 +20,7 @@ router.get('/', async (req, res, next) => {
     const userId = req.user.id;
 
     const [campaigns] = await db.query(
-      `SELECT id, public_id, title, url, coins_per_visit, daily_cap, is_paused, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, total_clicks, clicks_served, is_paused, created_at
        FROM campaigns
        WHERE user_id = ?
        ORDER BY created_at DESC`,
@@ -45,7 +45,7 @@ router.post('/', async (req, res, next) => {
     const title = sanitizeInput(req.body.title, 120);
     const url = sanitizeInput(req.body.url, 512);
     const coinsPerVisit = req.body.coins_per_visit;
-    const dailyCap = req.body.daily_cap;
+    const totalClicks = req.body.total_clicks;
 
     // Validate title
     const titleError = validateCampaignTitle(title);
@@ -71,16 +71,16 @@ router.post('/', async (req, res, next) => {
       });
     }
 
-    // Validate daily cap
-    const capError = validateDailyCap(dailyCap);
+    // Validate total clicks (reuse validateDailyCap function but rename conceptually)
+    const capError = validateDailyCap(totalClicks);
     if (capError) {
       return res.status(422).json({
-        error: { code: 'VALIDATION_ERROR', message: capError },
+        error: { code: 'VALIDATION_ERROR', message: capError.replace('Daily cap', 'Total clicks') },
       });
     }
 
-    // Calculate total coins needed for the campaign (coins_per_visit * daily_cap)
-    const totalCoinsNeeded = coinsPerVisit * dailyCap;
+    // Calculate total coins needed for the campaign (coins_per_visit * total_clicks)
+    const totalCoinsNeeded = coinsPerVisit * totalClicks;
 
     // Start transaction to check balance and deduct coins atomically
     const connection = await db.getConnection();
@@ -108,7 +108,7 @@ router.post('/', async (req, res, next) => {
         return res.status(400).json({
           error: {
             code: 'INSUFFICIENT_COINS',
-            message: `You need ${totalCoinsNeeded} coins to create this campaign (${coinsPerVisit} coins × ${dailyCap} daily cap). You have ${userCoins} coins.`,
+            message: `You need ${totalCoinsNeeded} coins to create this campaign (${coinsPerVisit} coins × ${totalClicks} clicks). You have ${userCoins} coins.`,
           },
         });
       }
@@ -121,9 +121,9 @@ router.post('/', async (req, res, next) => {
 
       // Insert campaign
       const [result] = await connection.query(
-        `INSERT INTO campaigns (user_id, title, url, coins_per_visit, daily_cap)
+        `INSERT INTO campaigns (user_id, title, url, coins_per_visit, total_clicks)
          VALUES (?, ?, ?, ?, ?)`,
-        [userId, title, url, coinsPerVisit, dailyCap]
+        [userId, title, url, coinsPerVisit, totalClicks]
       );
 
       const campaignId = result.insertId;
@@ -134,7 +134,7 @@ router.post('/', async (req, res, next) => {
 
       // Fetch created campaign
       const [campaigns] = await connection.query(
-        `SELECT id, public_id, title, url, coins_per_visit, daily_cap, is_paused, created_at
+        `SELECT id, public_id, title, url, coins_per_visit, total_clicks, clicks_served, is_paused, created_at
          FROM campaigns
          WHERE id = ?`,
         [campaignId]
@@ -224,17 +224,8 @@ router.patch('/:id', async (req, res, next) => {
       values.push(req.body.coins_per_visit);
     }
 
-    // Daily cap
-    if (req.body.daily_cap !== undefined) {
-      const capError = validateDailyCap(req.body.daily_cap);
-      if (capError) {
-        return res.status(422).json({
-          error: { code: 'VALIDATION_ERROR', message: capError },
-        });
-      }
-      updates.push('daily_cap = ?');
-      values.push(req.body.daily_cap);
-    }
+    // Total clicks (note: updating this won't adjust user balance - for simplicity we'll skip this field in updates)
+    // Users should delete and recreate if they want different total_clicks
 
     // Is paused
     if (req.body.is_paused !== undefined) {
@@ -262,7 +253,7 @@ router.patch('/:id', async (req, res, next) => {
 
     // Fetch updated campaign
     const [campaigns] = await db.query(
-      `SELECT id, public_id, title, url, coins_per_visit, daily_cap, is_paused, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, total_clicks, clicks_served, is_paused, created_at
        FROM campaigns
        WHERE id = ?`,
       [campaignId]
@@ -297,7 +288,7 @@ router.delete('/:id', async (req, res, next) => {
     try {
       // Fetch campaign details with lock
       const [campaigns] = await connection.query(
-        `SELECT id, user_id, coins_per_visit, daily_cap
+        `SELECT id, user_id, coins_per_visit, total_clicks, clicks_served
          FROM campaigns
          WHERE id = ? AND user_id = ?
          FOR UPDATE`,
@@ -314,15 +305,9 @@ router.delete('/:id', async (req, res, next) => {
 
       const campaign = campaigns[0];
 
-      // Count how many visits were actually completed
-      const [visitCounts] = await connection.query(
-        'SELECT COUNT(*) as total_visits FROM visits WHERE campaign_id = ?',
-        [campaignId]
-      );
-
-      const completedVisits = visitCounts[0].total_visits;
-      const totalPaid = campaign.coins_per_visit * campaign.daily_cap;
-      const coinsUsed = completedVisits * campaign.coins_per_visit;
+      // Calculate refund based on clicks_served
+      const totalPaid = campaign.coins_per_visit * campaign.total_clicks;
+      const coinsUsed = campaign.clicks_served * campaign.coins_per_visit;
       const refundAmount = totalPaid - coinsUsed;
 
       // Refund unused coins to user
