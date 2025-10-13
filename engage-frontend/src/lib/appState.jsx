@@ -71,6 +71,9 @@ export function AppProvider({ children }) {
     return loaded ? loaded.campaigns : [];
   });
 
+  // Auth state (user: { email, coins } or null)
+  const [user, setUser] = useState(null);
+
   // Debounce timer ref
   const saveTimerRef = useRef(null);
 
@@ -167,8 +170,10 @@ export function AppProvider({ children }) {
       pauseCampaign,
       resumeCampaign,
       deleteCampaign,
+      user,
+      setUser,
     }),
-    [coins, campaigns]
+    [coins, campaigns, user]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
