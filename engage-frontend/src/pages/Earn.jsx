@@ -1,22 +1,37 @@
 // src/pages/Earn.jsx
 import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
-import VisitModal from "../components/VisitModal";
 import { earn as earnAPI } from "../lib/api";
 import { useApp } from "../lib/appState";
 
 const COOLDOWN_MS = 5000; // 5 seconds
 
 export default function Earn() {
-  const { user, setUser } = useApp();
+  const { user } = useApp();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [campaigns, setCampaigns] = useState([]);
-  const [activeCampaign, setActiveCampaign] = useState(null);
-  const [verificationToken, setVerificationToken] = useState(null);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [showToast, setShowToast] = useState(false);
   const [earnedCoins, setEarnedCoins] = useState(0);
   const [error, setError] = useState("");
+
+  // Check if returning from gateway with toast
+  useEffect(() => {
+    if (location.state?.showToast) {
+      setEarnedCoins(location.state.earnedCoins);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+
+      // Set cooldown
+      setCooldownUntil(Date.now() + COOLDOWN_MS);
+
+      // Clear navigation state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   // Fetch earn queue on mount
   useEffect(() => {
@@ -42,12 +57,13 @@ export default function Earn() {
       // Request verification token from server
       const data = await earnAPI.startVisit(campaign.id);
 
-      // Open campaign URL in new tab
-      window.open(campaign.url, "_blank", "noreferrer");
-
-      // Store token and show verification modal
-      setVerificationToken(data.token);
-      setActiveCampaign(campaign);
+      // Navigate to gateway page with campaign and token
+      navigate("/gateway", {
+        state: {
+          campaign,
+          verificationToken: data.token,
+        },
+      });
     } catch (err) {
       setError(err.message);
       // Refresh queue in case campaign is no longer available
@@ -55,51 +71,7 @@ export default function Earn() {
     }
   };
 
-  const handleClaim = async () => {
-    if (!activeCampaign || !verificationToken) return;
-
-    setError("");
-
-    try {
-      // Claim reward with verification token
-      const data = await earnAPI.claimReward(verificationToken);
-
-      // Update user's coin balance
-      if (user) {
-        setUser({ ...user, coins: data.new_balance });
-      }
-
-      // Show toast notification
-      setEarnedCoins(data.coins_earned);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-
-      // Set cooldown
-      setCooldownUntil(Date.now() + COOLDOWN_MS);
-
-      // Close modal
-      setActiveCampaign(null);
-      setVerificationToken(null);
-
-      // Refresh queue
-      fetchQueue();
-    } catch (err) {
-      setError(err.message);
-      // Close modal on error
-      setActiveCampaign(null);
-      setVerificationToken(null);
-      // Refresh queue
-      fetchQueue();
-    }
-  };
-
-  const handleCancel = () => {
-    setActiveCampaign(null);
-    setVerificationToken(null);
-  };
-
   const isInCooldown = Date.now() < cooldownUntil;
-  const isVerifying = activeCampaign !== null;
 
   return (
     <div className="space-y-6">
@@ -146,22 +118,13 @@ export default function Earn() {
             <div className="shrink-0">
               <Button
                 onClick={() => handleVisit(nextCampaign)}
-                disabled={isVerifying || isInCooldown}
+                disabled={isInCooldown}
               >
-                {isInCooldown ? "Cooldown..." : "Visit & Verify"}
+                {isInCooldown ? "Cooldown..." : "Visit & Earn"}
               </Button>
             </div>
           </div>
         </Card>
-      )}
-
-      {/* Verification Modal */}
-      {activeCampaign && (
-        <VisitModal
-          campaign={activeCampaign}
-          onClaim={handleClaim}
-          onClose={handleCancel}
-        />
       )}
 
       {/* Toast Notification */}

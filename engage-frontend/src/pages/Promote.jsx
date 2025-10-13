@@ -4,6 +4,7 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Label from "../components/ui/Label";
 import { campaigns as campaignsAPI } from "../lib/api";
+import { useApp } from "../lib/appState";
 
 const isValidUrl = (u) => {
   try {
@@ -15,6 +16,7 @@ const isValidUrl = (u) => {
 };
 
 export default function Promote() {
+  const { user, setUser } = useApp();
   const [campaigns, setCampaigns] = useState([]);
   const [form, setForm] = useState({
     title: "",
@@ -24,6 +26,9 @@ export default function Promote() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState("deduction"); // "deduction" or "refund"
 
   // Fetch campaigns on mount
   useEffect(() => {
@@ -57,7 +62,21 @@ export default function Promote() {
     setLoading(true);
 
     try {
+      const totalCost = form.coins_per_visit * form.daily_cap;
+
       await campaignsAPI.create(form);
+
+      // Update user balance immediately
+      if (user) {
+        setUser({ ...user, coins: user.coins - totalCost });
+      }
+
+      // Show beautiful toast notification
+      setToastMessage(`${totalCost} coins deducted`);
+      setToastType("deduction");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+
       setForm({ title: "", url: "", coins_per_visit: 10, daily_cap: 50 });
       await fetchCampaigns();
     } catch (err) {
@@ -80,7 +99,19 @@ export default function Promote() {
     if (!window.confirm(`Delete campaign "${title}"?`)) return;
 
     try {
-      await campaignsAPI.remove(id);
+      const result = await campaignsAPI.remove(id);
+
+      // Update user balance with refund
+      if (user && result.refunded > 0) {
+        setUser({ ...user, coins: user.coins + result.refunded });
+
+        // Show refund toast
+        setToastMessage(`${result.refunded} coins refunded`);
+        setToastType("refund");
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+      }
+
       await fetchCampaigns();
     } catch (err) {
       setError(err.message);
@@ -192,6 +223,27 @@ export default function Promote() {
           </ul>
         )}
       </Card>
+
+      {/* Beautiful Toast Notification */}
+      {showToast && (
+        <div
+          className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 z-50 animate-slide-up ${
+            toastType === "deduction"
+              ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+              : "bg-gradient-to-r from-emerald-500 to-teal-600 text-white"
+          }`}
+        >
+          <div className="text-3xl">
+            {toastType === "deduction" ? "💰" : "🎉"}
+          </div>
+          <div>
+            <div className="font-bold text-lg">{toastMessage}</div>
+            <div className="text-sm opacity-90">
+              {toastType === "deduction" ? "Campaign created successfully" : "Unused coins returned"}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

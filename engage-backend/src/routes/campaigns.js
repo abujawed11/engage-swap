@@ -79,50 +79,77 @@ router.post('/', async (req, res, next) => {
       });
     }
 
-    // Check if user has enough coins to afford at least one visit
-    const [users] = await db.query(
-      'SELECT coins FROM users WHERE id = ? LIMIT 1',
-      [userId]
-    );
+    // Calculate total coins needed for the campaign (coins_per_visit * daily_cap)
+    const totalCoinsNeeded = coinsPerVisit * dailyCap;
 
-    if (users.length === 0) {
-      return res.status(404).json({
-        error: { code: 'USER_NOT_FOUND', message: 'User not found' },
-      });
+    // Start transaction to check balance and deduct coins atomically
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // Check if user has enough coins (with row lock)
+      const [users] = await connection.query(
+        'SELECT coins FROM users WHERE id = ? FOR UPDATE',
+        [userId]
+      );
+
+      if (users.length === 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(404).json({
+          error: { code: 'USER_NOT_FOUND', message: 'User not found' },
+        });
+      }
+
+      const userCoins = users[0].coins;
+      if (userCoins < totalCoinsNeeded) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          error: {
+            code: 'INSUFFICIENT_COINS',
+            message: `You need ${totalCoinsNeeded} coins to create this campaign (${coinsPerVisit} coins × ${dailyCap} daily cap). You have ${userCoins} coins.`,
+          },
+        });
+      }
+
+      // Deduct coins from user upfront
+      await connection.query(
+        'UPDATE users SET coins = coins - ? WHERE id = ?',
+        [totalCoinsNeeded, userId]
+      );
+
+      // Insert campaign
+      const [result] = await connection.query(
+        `INSERT INTO campaigns (user_id, title, url, coins_per_visit, daily_cap)
+         VALUES (?, ?, ?, ?, ?)`,
+        [userId, title, url, coinsPerVisit, dailyCap]
+      );
+
+      const campaignId = result.insertId;
+
+      // Generate and set public_id
+      const publicId = generatePublicId('CMP', campaignId);
+      await connection.query('UPDATE campaigns SET public_id = ? WHERE id = ?', [publicId, campaignId]);
+
+      // Fetch created campaign
+      const [campaigns] = await connection.query(
+        `SELECT id, public_id, title, url, coins_per_visit, daily_cap, is_paused, created_at
+         FROM campaigns
+         WHERE id = ?`,
+        [campaignId]
+      );
+
+      // Commit transaction
+      await connection.commit();
+      connection.release();
+
+      res.status(201).json({ campaign: campaigns[0] });
+    } catch (err) {
+      await connection.rollback();
+      connection.release();
+      throw err;
     }
-
-    const userCoins = users[0].coins;
-    if (userCoins < coinsPerVisit) {
-      return res.status(400).json({
-        error: {
-          code: 'INSUFFICIENT_COINS',
-          message: `You need at least ${coinsPerVisit} coins to create this campaign. You have ${userCoins} coins.`,
-        },
-      });
-    }
-
-    // Insert campaign
-    const [result] = await db.query(
-      `INSERT INTO campaigns (user_id, title, url, coins_per_visit, daily_cap)
-       VALUES (?, ?, ?, ?, ?)`,
-      [userId, title, url, coinsPerVisit, dailyCap]
-    );
-
-    const campaignId = result.insertId;
-
-    // Generate and set public_id
-    const publicId = generatePublicId('CMP', campaignId);
-    await db.query('UPDATE campaigns SET public_id = ? WHERE id = ?', [publicId, campaignId]);
-
-    // Fetch created campaign
-    const [campaigns] = await db.query(
-      `SELECT id, public_id, title, url, coins_per_visit, daily_cap, is_paused, created_at
-       FROM campaigns
-       WHERE id = ?`,
-      [campaignId]
-    );
-
-    res.status(201).json({ campaign: campaigns[0] });
   } catch (err) {
     next(err);
   }
@@ -250,6 +277,7 @@ router.patch('/:id', async (req, res, next) => {
 /**
  * DELETE /campaigns/:id
  * Delete campaign (only if owned by authenticated user)
+ * Refunds unused coins to the user
  */
 router.delete('/:id', async (req, res, next) => {
   try {
@@ -262,19 +290,67 @@ router.delete('/:id', async (req, res, next) => {
       });
     }
 
-    // Delete (will only delete if owned by user)
-    const [result] = await db.query(
-      'DELETE FROM campaigns WHERE id = ? AND user_id = ?',
-      [campaignId, userId]
-    );
+    // Start transaction to calculate refund and delete atomically
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Campaign not found' },
+    try {
+      // Fetch campaign details with lock
+      const [campaigns] = await connection.query(
+        `SELECT id, user_id, coins_per_visit, daily_cap
+         FROM campaigns
+         WHERE id = ? AND user_id = ?
+         FOR UPDATE`,
+        [campaignId, userId]
+      );
+
+      if (campaigns.length === 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(404).json({
+          error: { code: 'NOT_FOUND', message: 'Campaign not found' },
+        });
+      }
+
+      const campaign = campaigns[0];
+
+      // Count how many visits were actually completed
+      const [visitCounts] = await connection.query(
+        'SELECT COUNT(*) as total_visits FROM visits WHERE campaign_id = ?',
+        [campaignId]
+      );
+
+      const completedVisits = visitCounts[0].total_visits;
+      const totalPaid = campaign.coins_per_visit * campaign.daily_cap;
+      const coinsUsed = completedVisits * campaign.coins_per_visit;
+      const refundAmount = totalPaid - coinsUsed;
+
+      // Refund unused coins to user
+      if (refundAmount > 0) {
+        await connection.query(
+          'UPDATE users SET coins = coins + ? WHERE id = ?',
+          [refundAmount, userId]
+        );
+      }
+
+      // Delete campaign (will cascade delete visits due to FK)
+      await connection.query(
+        'DELETE FROM campaigns WHERE id = ?',
+        [campaignId]
+      );
+
+      await connection.commit();
+      connection.release();
+
+      res.status(200).json({
+        ok: true,
+        refunded: refundAmount
       });
+    } catch (err) {
+      await connection.rollback();
+      connection.release();
+      throw err;
     }
-
-    res.status(200).json({ ok: true });
   } catch (err) {
     next(err);
   }
