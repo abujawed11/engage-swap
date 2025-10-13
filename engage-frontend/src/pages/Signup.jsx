@@ -69,20 +69,20 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      // Signup and get token
-      const { token } = await auth.signup(
+      // Signup - returns { pending: true } now, not token
+      await auth.signup(
         form.username.trim(),
         form.email.trim(),
         form.password
       );
-      setToken(token);
 
-      // Fetch user profile
-      const userData = await auth.me();
-      setUser(userData);
-
-      // Navigate to home
-      navigate("/");
+      // Navigate to verify-email page with username/email
+      navigate("/verify-email", {
+        state: {
+          identifier: form.username.trim(),
+          email: form.email.trim(),
+        },
+      });
     } catch (err) {
       setServerError(err.message);
     } finally {

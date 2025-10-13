@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
@@ -9,10 +9,16 @@ import { useApp } from "../lib/appState";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { setUser } = useApp();
   const [form, setForm] = useState({ identifier: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+
+  // Get success message from navigation state
+  const successMessage = location.state?.message;
 
   const onChange = (e) => {
     const { name, value } = e.target;
@@ -22,6 +28,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setEmailNotVerified(false);
 
     // Basic validation
     if (!form.identifier.trim()) {
@@ -47,9 +54,33 @@ export default function Login() {
       // Navigate to home
       navigate("/");
     } catch (err) {
+      // Check if email not verified
+      if (err.code === "EMAIL_NOT_VERIFIED") {
+        setEmailNotVerified(true);
+      }
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setError("");
+    setResendLoading(true);
+
+    try {
+      await auth.resendOTP(form.identifier.trim());
+      // Navigate to verify-email page
+      navigate("/verify-email", {
+        state: {
+          identifier: form.identifier.trim(),
+          email: null, // We don't have the email in login form
+        },
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -60,6 +91,12 @@ export default function Login() {
         <p className="mt-2 text-slate-600">
           Sign in to your account to continue.
         </p>
+
+        {successMessage && (
+          <div className="mt-4 text-sm text-green-600 bg-green-50 border border-green-200 rounded px-3 py-2">
+            {successMessage}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
@@ -86,9 +123,22 @@ export default function Login() {
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-              {error}
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                {error}
+              </p>
+              {emailNotVerified && (
+                <Button
+                  type="button"
+                  onClick={handleResendOTP}
+                  disabled={resendLoading}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {resendLoading ? "Sending code..." : "Resend verification code"}
+                </Button>
+              )}
+            </div>
           )}
 
           <Button type="submit" disabled={loading} className="w-full">

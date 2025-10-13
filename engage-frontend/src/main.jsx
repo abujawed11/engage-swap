@@ -8,6 +8,7 @@ import Earn from "./pages/Earn";
 import Promote from "./pages/Promote";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import VerifyEmail from "./pages/VerifyEmail";
 import AuthGate from "./components/AuthGate";
 import { AppProvider } from "./lib/appState";
 
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       // Public routes
       { path: "login", element: <Login /> },
       { path: "signup", element: <Signup /> },
+      { path: "verify-email", element: <VerifyEmail /> },
 
       // Protected routes
       {

@@ -42,6 +42,14 @@ Required:
 - `CORS_ORIGIN` - Allowed origins (comma-separated)
 - `JWT_SECRET` - JWT signing secret
 
+## Database Setup
+
+Run the migrations to create tables:
+```bash
+mysql -u root -p engage_swap < migrations/001_create_users_table.sql
+mysql -u root -p engage_swap < migrations/002_add_email_verification.sql
+```
+
 ## API Endpoints
 
 ### Health Check
@@ -57,13 +65,182 @@ GET /healthz
 }
 ```
 
-**Database Down (503):**
+### Authentication
+
+Rate limited to 5 requests per minute per IP.
+
+#### Signup
+```
+POST /auth/signup
+Content-Type: application/json
+
+{
+  "username": "johndoe",
+  "email": "john@example.com",
+  "password": "SecurePass123"
+}
+```
+
+**Success (201):**
 ```json
 {
-  "ok": false,
+  "pending": true
+}
+```
+
+Note: User is created but unverified. OTP code is sent to email (or logged to console in development).
+
+**Validation Error (422):**
+```json
+{
   "error": {
-    "code": "DB_DOWN",
-    "message": "Database connection failed"
+    "code": "VALIDATION_ERROR",
+    "message": "Username must be at least 3 characters"
+  }
+}
+```
+
+**Duplicate User (409):**
+```json
+{
+  "error": {
+    "code": "DUPLICATE_USER",
+    "message": "Username or email already exists"
+  }
+}
+```
+
+#### Verify Email
+```
+POST /auth/verify-email
+Content-Type: application/json
+
+{
+  "emailOrUsername": "johndoe",  // or email
+  "code": "123456"
+}
+```
+
+**Success (200):**
+```json
+{
+  "token": "eyJhbGc..."
+}
+```
+
+**Invalid Code (401):**
+```json
+{
+  "error": {
+    "code": "INVALID_CODE",
+    "message": "Invalid verification code"
+  }
+}
+```
+
+**Already Verified (409):**
+```json
+{
+  "error": {
+    "code": "ALREADY_VERIFIED",
+    "message": "Email already verified"
+  }
+}
+```
+
+#### Resend OTP
+```
+POST /auth/resend-otp
+Content-Type: application/json
+
+{
+  "emailOrUsername": "johndoe"  // or email
+}
+```
+
+**Success (200):**
+```json
+{
+  "ok": true
+}
+```
+
+**Rate Limited (429):**
+```json
+{
+  "error": {
+    "code": "TOO_MANY_REQUESTS",
+    "message": "Please wait 60 seconds before requesting another code"
+  }
+}
+```
+
+Note: Always returns 200 if user not found (to prevent user enumeration).
+
+#### Login
+```
+POST /auth/login
+Content-Type: application/json
+
+{
+  "identifier": "johndoe",  // or email
+  "password": "SecurePass123"
+}
+```
+
+**Success (200):**
+```json
+{
+  "token": "eyJhbGc..."
+}
+```
+
+**Invalid Credentials (401):**
+```json
+{
+  "error": {
+    "code": "INVALID_CREDENTIALS",
+    "message": "Invalid credentials"
+  }
+}
+```
+
+**Email Not Verified (403):**
+```json
+{
+  "error": {
+    "code": "EMAIL_NOT_VERIFIED",
+    "message": "Please verify your email before logging in"
+  },
+  "canResend": true
+}
+```
+
+### User Profile
+
+#### Get Current User
+```
+GET /me
+Authorization: Bearer <token>
+```
+
+**Success (200):**
+```json
+{
+  "id": 1,
+  "username": "johndoe",
+  "email": "john@example.com",
+  "coins": 0,
+  "is_admin": false
+}
+```
+
+**Unauthorized (401):**
+```json
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Authentication required"
   }
 }
 ```

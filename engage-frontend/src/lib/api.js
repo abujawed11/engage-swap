@@ -34,13 +34,19 @@ async function apiCall(endpoint, options = {}) {
     const data = await response.json();
 
     if (!response.ok) {
-      // Server error shape: { error: { code, message } }
-      throw new Error(data.error?.message || "Request failed");
+      // Server error shape: { error: { code, message }, ...otherFields }
+      const error = new Error(data.error?.message || "Request failed");
+      error.code = data.error?.code;
+      error.data = data; // Preserve full response for special handling
+      throw error;
     }
 
     return data;
   } catch (err) {
     // Re-throw with message for UI consumption
+    if (err.code || err.data) {
+      throw err; // Already an API error
+    }
     throw new Error(err.message || "Network error");
   }
 }
@@ -63,5 +69,19 @@ export const auth = {
 
   async me() {
     return apiCall("/me", { method: "GET" });
+  },
+
+  async verifyEmail(emailOrUsername, code) {
+    return apiCall("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ emailOrUsername, code }),
+    });
+  },
+
+  async resendOTP(emailOrUsername) {
+    return apiCall("/auth/resend-otp", {
+      method: "POST",
+      body: JSON.stringify({ emailOrUsername }),
+    });
   },
 };

@@ -12,6 +12,11 @@ function validateEnv() {
     'DB_NAME',
     'CORS_ORIGIN',
     'JWT_SECRET',
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'SMTP_USER',
+    'SMTP_PASS',
+    'SMTP_FROM',
   ];
 
   const missing = required.filter((key) => !process.env[key]);
@@ -39,6 +44,11 @@ function loadConfig() {
     DB_NAME: process.env.DB_NAME,
     CORS_ORIGIN: process.env.CORS_ORIGIN.split(',').map((o) => o.trim()),
     JWT_SECRET: process.env.JWT_SECRET,
+    SMTP_HOST: process.env.SMTP_HOST,
+    SMTP_PORT: parseInt(process.env.SMTP_PORT, 10),
+    SMTP_USER: process.env.SMTP_USER,
+    SMTP_PASS: process.env.SMTP_PASS,
+    SMTP_FROM: process.env.SMTP_FROM,
   };
 }
 

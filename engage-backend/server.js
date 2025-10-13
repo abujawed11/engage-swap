@@ -4,7 +4,10 @@ const config = require('./src/config');
 const db = require('./src/db');
 const requestLogger = require('./src/middleware/requestLogger');
 const { notFoundHandler, errorHandler } = require('./src/middleware/errorHandler');
+const { authLimiter } = require('./src/middleware/rateLimiter');
 const healthRouter = require('./src/routes/health');
+const authRouter = require('./src/routes/auth');
+const userRouter = require('./src/routes/user');
 
 const app = express();
 
@@ -19,6 +22,8 @@ app.use(requestLogger);
 
 // ─── Routes ───
 app.use('/', healthRouter);
+app.use('/auth', authLimiter, authRouter);
+app.use('/', userRouter);
 
 // ─── Error Handlers ───
 app.use(notFoundHandler);
