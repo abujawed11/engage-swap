@@ -15,7 +15,7 @@ const isValidUrl = (u) => {
 };
 
 export default function Promote() {
-  const { addCampaign, campaigns } = useApp();
+  const { addCampaign, campaigns, pauseCampaign, resumeCampaign, deleteCampaign } = useApp();
   const [form, setForm] = useState({
     title: "",
     url: "",
@@ -41,6 +41,14 @@ export default function Promote() {
     setForm({ title: "", url: "", coinsPerVisit: 10, dailyCap: 50 });
     setError("");
   };
+
+  const handleDelete = (id, title) => {
+    if (window.confirm(`Delete campaign "${title}"?`)) {
+      deleteCampaign(id);
+    }
+  };
+
+  const dayKey = () => new Date().toISOString().slice(0, 10);
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
@@ -100,24 +108,50 @@ export default function Promote() {
           <p className="mt-2 text-slate-600">No campaigns yet. Create your first one.</p>
         ) : (
           <ul className="mt-4 space-y-3">
-            {campaigns.map((c) => (
-              <li key={c.id} className="rounded-lg border p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium">{c.title}</div>
-                    <a href={c.url} target="_blank" rel="noreferrer" className="text-sm text-teal-700 break-all">
-                      {c.url}
-                    </a>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {c.coinsPerVisit} coins/visit • Daily cap {c.dailyCap}
+            {campaigns.map((c) => {
+              const today = dayKey();
+              const servedToday = c.servedDay === today ? c.servedToday : 0;
+              return (
+                <li key={c.id} className="rounded-lg border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium">{c.title}</div>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded ${
+                            c.isPaused
+                              ? "bg-slate-200 text-slate-700"
+                              : "bg-teal-100 text-teal-800"
+                          }`}
+                        >
+                          {c.isPaused ? "Paused" : "Active"}
+                        </span>
+                      </div>
+                      <a href={c.url} target="_blank" rel="noreferrer" className="text-sm text-teal-700 break-all">
+                        {c.url}
+                      </a>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {c.coinsPerVisit} coins/visit • Daily cap {c.dailyCap} • Today: {servedToday}/{c.dailyCap}
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 shrink-0">
+                      <Button
+                        onClick={() => c.isPaused ? resumeCampaign(c.id) : pauseCampaign(c.id)}
+                        className="text-xs px-2 py-1 h-auto"
+                      >
+                        {c.isPaused ? "Resume" : "Pause"}
+                      </Button>
+                      <Button
+                        onClick={() => handleDelete(c.id, c.title)}
+                        className="text-xs px-2 py-1 h-auto bg-red-600 hover:bg-red-700"
+                      >
+                        Delete
+                      </Button>
                     </div>
                   </div>
-                  <span className="text-xs text-slate-500">
-                    {new Date(c.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>

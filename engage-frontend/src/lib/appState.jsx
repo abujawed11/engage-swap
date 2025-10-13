@@ -105,6 +105,8 @@ export function AppProvider({ children }) {
         createdAt: Date.now(),
         servedDay: dayKey(), // which day servedToday belongs to
         servedToday: 0,      // credited visits today
+        isPaused: false,     // can be paused/resumed
+        lastServedAt: undefined, // ms epoch when last visit was credited
         // expects: { title, url, coinsPerVisit, dailyCap }
         ...c,
       },
@@ -125,6 +127,7 @@ export function AppProvider({ children }) {
           ...c,
           servedDay: today,
           servedToday: servedToday + 1,
+          lastServedAt: Date.now(), // track rotation fairness
         };
       })
     );
@@ -132,6 +135,25 @@ export function AppProvider({ children }) {
     if (coinsToAdd > 0) {
       setCoins((v) => v + coinsToAdd);
     }
+  };
+
+  // Pause a campaign (will not appear in Earn rotation)
+  const pauseCampaign = (campaignId) => {
+    setCampaigns((prev) =>
+      prev.map((c) => (c.id === campaignId ? { ...c, isPaused: true } : c))
+    );
+  };
+
+  // Resume a paused campaign
+  const resumeCampaign = (campaignId) => {
+    setCampaigns((prev) =>
+      prev.map((c) => (c.id === campaignId ? { ...c, isPaused: false } : c))
+    );
+  };
+
+  // Delete a campaign
+  const deleteCampaign = (campaignId) => {
+    setCampaigns((prev) => prev.filter((c) => c.id !== campaignId));
   };
 
   const value = useMemo(
@@ -142,6 +164,9 @@ export function AppProvider({ children }) {
       campaigns,
       addCampaign,
       creditVisit,
+      pauseCampaign,
+      resumeCampaign,
+      deleteCampaign,
     }),
     [coins, campaigns]
   );
