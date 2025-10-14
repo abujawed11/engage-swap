@@ -251,6 +251,28 @@ function calculateTotalCampaignCost(baseCoins, watchDuration, totalClicks) {
 }
 
 /**
+ * Calculate actual coins per visit that visitor should receive
+ * This includes the base coins PLUS the per-visit portion of the duration extra cost
+ * Formula: baseCoins + (durationExtraCost / totalClicks)
+ *
+ * Example:
+ * - Base: 10 coins, Duration: 60s, Total clicks: 10
+ * - Duration extra cost: 5 × 2 = 10 coins (for entire campaign)
+ * - Per-visit portion: 10 / 10 = 1 coin per visit
+ * - Actual reward: 10 + 1 = 11 coins per visit
+ */
+function calculateActualCoinsPerVisit(baseCoins, watchDuration, totalClicks) {
+  // Convert to numbers (database returns DECIMAL as string)
+  const baseCoinsNum = Number(baseCoins);
+  const watchDurationNum = Number(watchDuration);
+  const totalClicksNum = Number(totalClicks);
+
+  const extraCost = calculateDurationExtraCost(watchDurationNum);
+  const extraPerVisit = extraCost / totalClicksNum;
+  return baseCoinsNum + extraPerVisit;
+}
+
+/**
  * Round decimal coins to 3 decimal places for ledger entries
  * Use this when writing to database to ensure consistency
  */
@@ -271,5 +293,6 @@ module.exports = {
   calculateDurationSteps,
   calculateDurationExtraCost,
   calculateTotalCampaignCost,
+  calculateActualCoinsPerVisit,
   roundCoins,
 };

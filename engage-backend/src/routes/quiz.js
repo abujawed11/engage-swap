@@ -9,7 +9,7 @@ const db = require('../db');
 const { getQuestionById } = require('../utils/questionBank');
 const { checkFreeTextAnswer } = require('../utils/questionValidation');
 const { calculateQuizReward } = require('../utils/quizRewards');
-const { roundCoins } = require('../utils/validation');
+const { roundCoins, calculateActualCoinsPerVisit } = require('../utils/validation');
 
 /**
  * Fisher-Yates shuffle for randomization
@@ -39,7 +39,7 @@ router.get('/:campaignId', async (req, res, next) => {
     try {
       // Fetch campaign to verify it exists and get owner
       const [campaigns] = await connection.query(
-        'SELECT id, user_id, coins_per_visit FROM campaigns WHERE id = ? AND is_paused = 0',
+        'SELECT id, user_id, coins_per_visit, watch_duration, total_clicks FROM campaigns WHERE id = ? AND is_paused = 0',
         [campaignId]
       );
 
@@ -53,6 +53,13 @@ router.get('/:campaignId', async (req, res, next) => {
       if (campaign.user_id === userId) {
         return res.status(403).json({ error: 'Cannot take quiz on your own campaign' });
       }
+
+      // Calculate actual coins per visit (includes duration bonus)
+      const actualCoinsPerVisit = calculateActualCoinsPerVisit(
+        campaign.coins_per_visit,
+        campaign.watch_duration,
+        campaign.total_clicks
+      );
 
       // Fetch campaign questions
       const [rows] = await connection.query(
@@ -102,7 +109,7 @@ router.get('/:campaignId', async (req, res, next) => {
 
       res.status(200).json({
         campaign_id: campaignId,
-        full_reward: roundCoins(campaign.coins_per_visit),
+        full_reward: roundCoins(actualCoinsPerVisit),
         questions: randomizedQuestions,
       });
     } finally {
@@ -157,7 +164,7 @@ router.post('/submit', async (req, res, next) => {
 
       // Fetch visit token to validate and get campaign info
       const [tokens] = await connection.query(
-        `SELECT vt.campaign_id, vt.user_id, c.coins_per_visit
+        `SELECT vt.campaign_id, vt.user_id, c.coins_per_visit, c.watch_duration, c.total_clicks
          FROM visit_tokens vt
          JOIN campaigns c ON vt.campaign_id = c.id
          WHERE vt.token = ?`,
@@ -175,6 +182,20 @@ router.post('/submit', async (req, res, next) => {
         await connection.rollback();
         return res.status(403).json({ error: 'Unauthorized' });
       }
+
+      // Calculate actual coins per visit (includes duration bonus)
+      const actualCoinsPerVisit = calculateActualCoinsPerVisit(
+        tokenData.coins_per_visit,
+        tokenData.watch_duration,
+        tokenData.total_clicks
+      );
+
+      console.log('[Quiz Submit] Campaign details:', {
+        baseCoins: tokenData.coins_per_visit,
+        watchDuration: tokenData.watch_duration,
+        totalClicks: tokenData.total_clicks,
+        actualCoinsPerVisit: actualCoinsPerVisit
+      });
 
       // Fetch campaign questions with correct answers
       const [questions] = await connection.query(
@@ -220,9 +241,17 @@ router.post('/submit', async (req, res, next) => {
         }
       }
 
-      // Calculate reward
-      const fullReward = roundCoins(tokenData.coins_per_visit);
+      // Calculate reward using actual coins per visit (includes duration bonus)
+      const fullReward = roundCoins(actualCoinsPerVisit);
       const { passed, multiplier, reward } = calculateQuizReward(fullReward, correctCount);
+
+      console.log('[Quiz Submit] Reward calculation:', {
+        fullReward: fullReward,
+        correctCount: correctCount,
+        passed: passed,
+        multiplier: multiplier,
+        finalReward: reward
+      });
 
       // Store result
       await connection.query(
