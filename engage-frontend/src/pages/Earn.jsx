@@ -5,6 +5,7 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import { earn as earnAPI } from "../lib/api";
 import { useApp } from "../lib/appState";
+import { formatCoinsValue } from "../lib/coins";
 
 const COOLDOWN_MS = 5000; // 5 seconds
 
@@ -47,9 +48,6 @@ export default function Earn() {
     }
   };
 
-  // Get the first campaign (for now, just show one at a time)
-  const nextCampaign = campaigns.length > 0 ? campaigns[0] : null;
-
   const handleVisit = async (campaign) => {
     setError("");
 
@@ -76,10 +74,9 @@ export default function Earn() {
   return (
     <div className="space-y-6">
       <Card>
-        <h2 className="text-2xl font-semibold">Earn</h2>
+        <h2 className="text-2xl font-semibold">Earn Coins</h2>
         <p className="mt-2 text-slate-600">
-          Visit a campaign and stay on this app for 30 seconds to earn coins.
-          Timer pauses if you switch tabs.
+          Visit campaigns and watch for the required duration to earn coins. Choose from available campaigns below.
         </p>
       </Card>
 
@@ -91,47 +88,64 @@ export default function Earn() {
         </Card>
       )}
 
-      {!nextCampaign ? (
+      {campaigns.length === 0 ? (
         <Card>
           <p className="text-slate-600">
             No eligible campaigns right now. Create one on the Promote page, or check back later.
           </p>
         </Card>
       ) : (
-        <Card>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-lg font-semibold">{nextCampaign.title}</div>
-              <a
-                href={nextCampaign.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-teal-700 break-all"
-              >
-                {nextCampaign.url}
-              </a>
-              <div className="mt-1 text-sm text-slate-500">
-                +{nextCampaign.coins_per_visit} coins • {nextCampaign.clicks_served}/{nextCampaign.total_clicks} clicks completed
-              </div>
-              {/* Progress bar */}
-              <div className="mt-2 w-full bg-slate-200 rounded-full h-2">
-                <div
-                  className="bg-teal-600 h-2 rounded-full transition-all"
-                  style={{ width: `${(nextCampaign.clicks_served / nextCampaign.total_clicks) * 100}%` }}
-                />
-              </div>
-            </div>
+        <div className="space-y-4">
+          <Card>
+            <h3 className="text-lg font-semibold text-slate-700">
+              Available Campaigns ({campaigns.length})
+            </h3>
+          </Card>
 
-            <div className="shrink-0">
-              <Button
-                onClick={() => handleVisit(nextCampaign)}
-                disabled={isInCooldown}
-              >
-                {isInCooldown ? "Cooldown..." : "Visit & Earn"}
-              </Button>
-            </div>
-          </div>
-        </Card>
+          {campaigns.map((campaign) => (
+            <Card key={campaign.id}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="text-lg font-semibold">{campaign.title}</div>
+                  <a
+                    href={campaign.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm text-teal-700 break-all hover:underline"
+                  >
+                    {campaign.url}
+                  </a>
+                  <div className="mt-2 flex items-center gap-4 text-sm text-slate-600">
+                    <span className="font-semibold text-teal-700">
+                      +{formatCoinsValue(campaign.coins_per_visit)} coins
+                    </span>
+                    <span>•</span>
+                    <span>{campaign.watch_duration || 30}s watch required</span>
+                    <span>•</span>
+                    <span>{campaign.clicks_served}/{campaign.total_clicks} completed</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="mt-2 w-full bg-slate-200 rounded-full h-2">
+                    <div
+                      className="bg-teal-600 h-2 rounded-full transition-all"
+                      style={{ width: `${(campaign.clicks_served / campaign.total_clicks) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="shrink-0">
+                  <Button
+                    onClick={() => handleVisit(campaign)}
+                    disabled={isInCooldown}
+                    className="whitespace-nowrap"
+                  >
+                    {isInCooldown ? "Cooldown..." : "Visit & Earn"}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* Toast Notification */}
