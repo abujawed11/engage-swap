@@ -1,10 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Label from "../components/ui/Label";
 import { campaigns as campaignsAPI } from "../lib/api";
 import { useApp } from "../lib/appState";
+import {
+  formatCoins,
+  formatCoinsValue,
+  calculateDurationSteps,
+  calculateDurationExtraCost,
+  calculateTotalCampaignCost,
+  WATCH_DURATION_OPTIONS,
+  DEFAULT_WATCH_DURATION,
+  validateWatchDuration,
+} from "../lib/coins";
 
 const isValidUrl = (u) => {
   try {
@@ -22,6 +32,7 @@ export default function Promote() {
     title: "",
     url: "",
     coins_per_visit: 1,
+    watch_duration: DEFAULT_WATCH_DURATION,
     total_clicks: 20,
   });
   const [error, setError] = useState("");
@@ -44,6 +55,21 @@ export default function Promote() {
     }
   };
 
+  // Calculate engagement summary live as form values change
+  const engagementSummary = useMemo(() => {
+    const steps = calculateDurationSteps(form.watch_duration);
+    const extraCost = calculateDurationExtraCost(form.watch_duration);
+    const baseCost = form.coins_per_visit * form.total_clicks;
+    const totalCampaignCost = calculateTotalCampaignCost(form.coins_per_visit, form.watch_duration, form.total_clicks);
+
+    return {
+      steps,
+      extraCost,
+      baseCost,
+      totalCampaignCost,
+    };
+  }, [form.coins_per_visit, form.watch_duration, form.total_clicks]);
+
   const onChange = (e) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: name === "title" || name === "url" ? value : Number(value) }));
@@ -57,12 +83,16 @@ export default function Promote() {
     if (!form.title.trim()) return setError("Title is required.");
     if (!isValidUrl(form.url)) return setError("Enter a valid URL starting with https://");
     if (form.coins_per_visit < 1) return setError("Coins per visit must be at least 1.");
+
+    const durationError = validateWatchDuration(form.watch_duration);
+    if (durationError) return setError(durationError);
+
     if (form.total_clicks < 1) return setError("Total clicks must be at least 1.");
 
     setLoading(true);
 
     try {
-      const totalCost = form.coins_per_visit * form.total_clicks;
+      const totalCost = engagementSummary.totalCampaignCost;
 
       await campaignsAPI.create(form);
 
@@ -72,12 +102,12 @@ export default function Promote() {
       }
 
       // Show beautiful toast notification
-      setToastMessage(`${totalCost} coins deducted`);
+      setToastMessage(`${formatCoinsValue(totalCost)} coins deducted`);
       setToastType("deduction");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
 
-      setForm({ title: "", url: "", coins_per_visit: 1, total_clicks: 20 });
+      setForm({ title: "", url: "", coins_per_visit: 1, watch_duration: DEFAULT_WATCH_DURATION, total_clicks: 20 });
       await fetchCampaigns();
     } catch (err) {
       setError(err.message);
@@ -139,15 +169,17 @@ export default function Promote() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="coins_per_visit">Coins per visit</Label>
+              <Label htmlFor="coins_per_visit">Base Coins per Visit</Label>
               <Input
                 id="coins_per_visit"
                 name="coins_per_visit"
                 type="number"
                 min={1}
+                step="0.1"
                 value={form.coins_per_visit}
                 onChange={onChange}
               />
+              <p className="text-xs text-slate-500 mt-1">Minimum reward amount</p>
             </div>
             <div>
               <Label htmlFor="total_clicks">No of clicks</Label>
@@ -159,6 +191,58 @@ export default function Promote() {
                 value={form.total_clicks}
                 onChange={onChange}
               />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="watch_duration">Required Watch Duration (seconds)</Label>
+            <select
+              id="watch_duration"
+              name="watch_duration"
+              value={form.watch_duration}
+              onChange={onChange}
+              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+            >
+              {WATCH_DURATION_OPTIONS.map((duration) => (
+                <option key={duration} value={duration}>
+                  {duration}s
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500 mt-1">
+              Longer watch time increases cost by +5 coins per extra 15s beyond 30s.
+            </p>
+          </div>
+
+          {/* Engagement Summary Panel */}
+          <div className="bg-gradient-to-br from-teal-50 to-sky-50 border border-teal-200 rounded-lg p-4 space-y-2">
+            <h4 className="font-semibold text-teal-900">Engagement Summary</h4>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-slate-600">Duration Selected:</p>
+                <p className="font-semibold text-teal-800">{form.watch_duration}s</p>
+              </div>
+              <div>
+                <p className="text-slate-600">Steps:</p>
+                <p className="font-semibold text-teal-800">{engagementSummary.steps}</p>
+              </div>
+              <div>
+                <p className="text-slate-600">Extra Cost:</p>
+                <p className="font-semibold text-teal-800">+{engagementSummary.extraCost} coins</p>
+              </div>
+              <div>
+                <p className="text-slate-600">Base Cost:</p>
+                <p className="font-semibold text-teal-800">{formatCoinsValue(engagementSummary.baseCost)}</p>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-teal-200">
+              <div className="flex justify-between items-center">
+                <p className="text-slate-700 font-medium">Total Campaign Cost:</p>
+                <p className="text-xl font-bold text-teal-900">{formatCoins(engagementSummary.totalCampaignCost)}</p>
+              </div>
+              <p className="text-xs text-slate-600 mt-1">
+                You will be charged only when a visit completes the required watch time.
+              </p>
             </div>
           </div>
 
@@ -199,7 +283,7 @@ export default function Promote() {
                         {c.url}
                       </a>
                       <div className="mt-1 text-xs text-slate-500">
-                        {c.coins_per_visit} coins/visit • {c.clicks_served}/{c.total_clicks} clicks
+                        {formatCoinsValue(c.coins_per_visit)} coins/visit • {c.watch_duration || 30}s watch • {c.clicks_served}/{c.total_clicks} clicks
                       </div>
                       {/* Progress bar */}
                       <div className="mt-2 w-full bg-slate-200 rounded-full h-2">

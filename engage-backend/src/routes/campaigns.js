@@ -6,6 +6,9 @@ const {
   validateCampaignTitle,
   validateCoinsPerVisit,
   validateDailyCap,
+  validateWatchDuration,
+  calculateTotalCampaignCost,
+  roundCoins,
 } = require('../utils/validation');
 const { generatePublicId } = require('../utils/publicId');
 
@@ -20,7 +23,7 @@ router.get('/', async (req, res, next) => {
     const userId = req.user.id;
 
     const [campaigns] = await db.query(
-      `SELECT id, public_id, title, url, coins_per_visit, total_clicks, clicks_served, is_paused, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, is_paused, created_at
        FROM campaigns
        WHERE user_id = ?
        ORDER BY created_at DESC`,
@@ -44,7 +47,8 @@ router.post('/', async (req, res, next) => {
     // Sanitize inputs
     const title = sanitizeInput(req.body.title, 120);
     const url = sanitizeInput(req.body.url, 512);
-    const coinsPerVisit = req.body.coins_per_visit;
+    const baseCoinsPerVisit = req.body.coins_per_visit;
+    const watchDuration = req.body.watch_duration !== undefined ? req.body.watch_duration : 30; // Default to 30s
     const totalClicks = req.body.total_clicks;
 
     // Validate title
@@ -63,11 +67,19 @@ router.post('/', async (req, res, next) => {
       });
     }
 
-    // Validate coins per visit
-    const coinsError = validateCoinsPerVisit(coinsPerVisit);
+    // Validate base coins per visit
+    const coinsError = validateCoinsPerVisit(baseCoinsPerVisit);
     if (coinsError) {
       return res.status(422).json({
         error: { code: 'VALIDATION_ERROR', message: coinsError },
+      });
+    }
+
+    // Validate watch duration
+    const durationError = validateWatchDuration(watchDuration);
+    if (durationError) {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: durationError },
       });
     }
 
@@ -79,8 +91,10 @@ router.post('/', async (req, res, next) => {
       });
     }
 
-    // Calculate total coins needed for the campaign (coins_per_visit * total_clicks)
-    const totalCoinsNeeded = coinsPerVisit * totalClicks;
+    // Calculate total campaign cost using duration-based pricing
+    // Total cost = (baseCoins × totalClicks) + (5 × steps), where steps = (duration - 30) / 15
+    // The extra 5 coins per step is for the ENTIRE campaign, not per visit
+    const totalCoinsNeeded = roundCoins(calculateTotalCampaignCost(baseCoinsPerVisit, watchDuration, totalClicks));
 
     // Start transaction to check balance and deduct coins atomically
     const connection = await db.getConnection();
@@ -108,7 +122,7 @@ router.post('/', async (req, res, next) => {
         return res.status(400).json({
           error: {
             code: 'INSUFFICIENT_COINS',
-            message: `You need ${totalCoinsNeeded} coins to create this campaign (${coinsPerVisit} coins × ${totalClicks} clicks). You have ${userCoins} coins.`,
+            message: `You need ${totalCoinsNeeded.toFixed(1)} coins to create this campaign. You have ${userCoins} coins.`,
           },
         });
       }
@@ -120,10 +134,12 @@ router.post('/', async (req, res, next) => {
       );
 
       // Insert campaign
+      // Store the BASE coins_per_visit (not the total cost)
+      // The total cost is calculated on-the-fly using base + duration pricing
       const [result] = await connection.query(
-        `INSERT INTO campaigns (user_id, title, url, coins_per_visit, total_clicks)
-         VALUES (?, ?, ?, ?, ?)`,
-        [userId, title, url, coinsPerVisit, totalClicks]
+        `INSERT INTO campaigns (user_id, title, url, coins_per_visit, watch_duration, total_clicks)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, title, url, baseCoinsPerVisit, watchDuration, totalClicks]
       );
 
       const campaignId = result.insertId;
@@ -134,7 +150,7 @@ router.post('/', async (req, res, next) => {
 
       // Fetch created campaign
       const [campaigns] = await connection.query(
-        `SELECT id, public_id, title, url, coins_per_visit, total_clicks, clicks_served, is_paused, created_at
+        `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, is_paused, created_at
          FROM campaigns
          WHERE id = ?`,
         [campaignId]
@@ -224,6 +240,20 @@ router.patch('/:id', async (req, res, next) => {
       values.push(req.body.coins_per_visit);
     }
 
+    // Watch duration
+    if (req.body.watch_duration !== undefined) {
+      const durationError = validateWatchDuration(req.body.watch_duration);
+      if (durationError) {
+        return res.status(422).json({
+          error: { code: 'VALIDATION_ERROR', message: durationError },
+        });
+      }
+      // Note: Changing watch_duration on live campaigns affects cost dynamics
+      // Frontend should warn user with confirmation dialog
+      updates.push('watch_duration = ?');
+      values.push(req.body.watch_duration);
+    }
+
     // Total clicks (note: updating this won't adjust user balance - for simplicity we'll skip this field in updates)
     // Users should delete and recreate if they want different total_clicks
 
@@ -253,7 +283,7 @@ router.patch('/:id', async (req, res, next) => {
 
     // Fetch updated campaign
     const [campaigns] = await db.query(
-      `SELECT id, public_id, title, url, coins_per_visit, total_clicks, clicks_served, is_paused, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, is_paused, created_at
        FROM campaigns
        WHERE id = ?`,
       [campaignId]
@@ -288,7 +318,7 @@ router.delete('/:id', async (req, res, next) => {
     try {
       // Fetch campaign details with lock
       const [campaigns] = await connection.query(
-        `SELECT id, user_id, coins_per_visit, total_clicks, clicks_served
+        `SELECT id, user_id, coins_per_visit, watch_duration, total_clicks, clicks_served
          FROM campaigns
          WHERE id = ? AND user_id = ?
          FOR UPDATE`,
@@ -306,9 +336,11 @@ router.delete('/:id', async (req, res, next) => {
       const campaign = campaigns[0];
 
       // Calculate refund based on clicks_served
-      const totalPaid = campaign.coins_per_visit * campaign.total_clicks;
-      const coinsUsed = campaign.clicks_served * campaign.coins_per_visit;
-      const refundAmount = totalPaid - coinsUsed;
+      // Total paid = (baseCoins × totalClicks) + (5 × steps)
+      // Coins used = baseCoins × clicks_served  (the extra duration fee is upfront, not per-visit)
+      const totalPaid = roundCoins(calculateTotalCampaignCost(campaign.coins_per_visit, campaign.watch_duration, campaign.total_clicks));
+      const coinsUsed = roundCoins(campaign.clicks_served * campaign.coins_per_visit);
+      const refundAmount = roundCoins(totalPaid - coinsUsed);
 
       // Refund unused coins to user
       if (refundAmount > 0) {

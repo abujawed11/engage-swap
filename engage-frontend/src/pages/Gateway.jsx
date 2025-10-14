@@ -1,16 +1,13 @@
-// src/pages/Gateway.jsx - Enhanced version with popup window tracking
+// src/pages/Gateway.jsx - Enhanced version with popup window tracking and configurable watch duration
 import { useEffect, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import { earn as earnAPI } from "../lib/api";
 import { useApp } from "../lib/appState";
+import { formatCoins, formatCoinsValue } from "../lib/coins";
 
-const VERIFICATION_DURATION = 30; // 30 seconds for full verification
 const HEARTBEAT_INTERVAL = 5000; // Send metrics every 5 seconds
-const MOUSE_ACTIVITY_THRESHOLD = 10; // Minimum mouse movements for active engagement
-const PASSIVE_TIME_THRESHOLD = 20; // 20s for passive reward (50% coins)
-const ACTIVE_TIME_THRESHOLD = 30; // 30s + activity for full reward (100% coins)
 
 export default function Gateway() {
   const location = useLocation();
@@ -19,18 +16,20 @@ export default function Gateway() {
 
   const { campaign, verificationToken } = location.state || {};
 
+  // Get required watch duration from campaign (default to 30s if not set)
+  const requiredDuration = campaign?.watch_duration || 30;
+
+  // Visitor earns the base coins_per_visit (not the total campaign cost)
+  const coinsToEarn = campaign?.coins_per_visit || 0;
+
   // Time tracking
   const [activeTime, setActiveTime] = useState(0);
   const [isPaused, setIsPaused] = useState(true); // Start paused (user is on our page, not popup)
   const [isComplete, setIsComplete] = useState(false);
-  const [rewardTier, setRewardTier] = useState(null); // 'passive' or 'active'
 
-  // Activity tracking
+  // Activity tracking (kept for analytics but not used for reward tier anymore)
   const [mouseMovements, setMouseMovements] = useState(0);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
-  const [showVerification, setShowVerification] = useState(false);
-  const [verificationDot, setVerificationDot] = useState({ x: 0, y: 0 });
-  const [verificationPassed, setVerificationPassed] = useState(false);
 
   // Popup tracking
   const [popupOpen, setPopupOpen] = useState(false);
@@ -187,27 +186,9 @@ export default function Gateway() {
       setActiveTime((prev) => {
         const newTime = prev + 1;
 
-        // Check for passive tier completion (20s)
-        if (newTime >= PASSIVE_TIME_THRESHOLD && !rewardTier) {
-          setRewardTier("passive");
-        }
-
-        // Check for active tier completion (30s + either mouse activity OR verification passed)
-        // Since user is on popup, they won't move mouse on our page much
-        if (newTime >= ACTIVE_TIME_THRESHOLD && (mouseMovements >= MOUSE_ACTIVITY_THRESHOLD || verificationPassed)) {
-          setRewardTier("active");
+        // Check if user has reached the required watch duration
+        if (newTime >= requiredDuration) {
           setIsComplete(true);
-        }
-
-        // Also check if passive tier can be upgraded to active
-        if (newTime >= ACTIVE_TIME_THRESHOLD && rewardTier === "passive" && verificationPassed) {
-          setRewardTier("active");
-          setIsComplete(true);
-        }
-
-        // Show verification challenge at 15s if low mouse activity
-        if (newTime === 15 && mouseMovements < MOUSE_ACTIVITY_THRESHOLD / 2 && !verificationPassed) {
-          triggerVerification();
         }
 
         return newTime;
@@ -217,7 +198,7 @@ export default function Gateway() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isPaused, isComplete, mouseMovements, rewardTier, verificationPassed, popupOpen]);
+  }, [isPaused, isComplete, requiredDuration, popupOpen]);
 
   // Heartbeat: send metrics to backend every 5 seconds
   useEffect(() => {
@@ -229,7 +210,7 @@ export default function Gateway() {
           token: verificationToken,
           activeTime,
           mouseMovements,
-          verificationPassed,
+          verificationPassed: false, // Not used anymore but kept for backwards compatibility
         });
       } catch (err) {
         console.error("Heartbeat failed:", err);
@@ -239,29 +220,10 @@ export default function Gateway() {
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     };
-  }, [verificationToken, activeTime, mouseMovements, verificationPassed, isComplete]);
+  }, [verificationToken, activeTime, mouseMovements, isComplete]);
 
-  // Trigger human verification challenge
-  const triggerVerification = () => {
-    const x = Math.random() * 60 + 20;
-    const y = Math.random() * 60 + 20;
-    setVerificationDot({ x, y });
-    setShowVerification(true);
-
-    setTimeout(() => {
-      if (!verificationPassed) {
-        setShowVerification(false);
-      }
-    }, 10000);
-  };
-
-  const handleVerificationClick = () => {
-    setVerificationPassed(true);
-    setShowVerification(false);
-  };
-
-  const progress = (activeTime / ACTIVE_TIME_THRESHOLD) * 100;
-  const canClaim = rewardTier !== null;
+  const progress = (activeTime / requiredDuration) * 100;
+  const canClaim = isComplete;
 
   const handleClaim = async () => {
     if (!canClaim || isClaiming) return;
@@ -273,8 +235,8 @@ export default function Gateway() {
       const data = await earnAPI.claimReward(verificationToken, {
         activeTime,
         mouseMovements,
-        verificationPassed,
-        rewardTier,
+        verificationPassed: false, // Not used anymore
+        rewardTier: "active", // Not used anymore, but kept for backwards compatibility
       });
 
       if (user) {
@@ -346,18 +308,15 @@ export default function Gateway() {
                   {activeTime}s
                 </div>
                 <div className="text-sm text-slate-600 mt-1">
-                  Active time / {ACTIVE_TIME_THRESHOLD}s required
+                  Active time / {requiredDuration}s required
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-2xl font-bold text-slate-800">
-                  {rewardTier === "passive"
-                    ? `${(campaign.coins_per_visit * 0.5).toFixed(1)}`
-                    : campaign.coins_per_visit}
-                  {" "}coins
+                  {formatCoins(coinsToEarn)}
                 </div>
                 <div className="text-sm text-slate-600">
-                  {rewardTier === "passive" ? "Passive (50%)" : rewardTier === "active" ? "Active (100%)" : "Pending"}
+                  {isComplete ? "Ready to claim" : "In progress"}
                 </div>
               </div>
             </div>
@@ -380,7 +339,7 @@ export default function Gateway() {
               )}
               {!isPaused && !isComplete && popupOpen && (
                 <p className="text-teal-700 font-medium">
-                  ✅ Counting! Stay on the popup for {ACTIVE_TIME_THRESHOLD - activeTime}s more for full reward
+                  ✅ Counting! Stay on the popup for {requiredDuration - activeTime}s more to earn {formatCoins(coinsToEarn)}
                 </p>
               )}
               {isComplete && (
@@ -462,41 +421,10 @@ export default function Gateway() {
             {isClaiming
               ? "Claiming..."
               : canClaim
-                ? `Claim ${rewardTier === "passive" ? "50%" : "100%"} Reward (${
-                    rewardTier === "passive"
-                      ? (campaign.coins_per_visit * 0.5).toFixed(1)
-                      : campaign.coins_per_visit
-                  } coins)`
-                : `Wait ${PASSIVE_TIME_THRESHOLD - activeTime}s to unlock reward`}
+                ? `Claim Reward (${formatCoinsValue(coinsToEarn)} coins)`
+                : `Wait ${requiredDuration - activeTime}s to unlock reward`}
           </Button>
         </Card>
-
-        {/* Verification Challenge Overlay */}
-        {showVerification && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <Card className="max-w-md mx-4">
-              <h3 className="text-xl font-bold mb-3">🤖 Human Verification</h3>
-              <p className="text-sm text-slate-600 mb-4">
-                Click the green dot to prove you're actively viewing this page (not a bot!)
-              </p>
-              <div className="relative w-full h-64 bg-slate-100 rounded-lg border-2 border-slate-300">
-                <button
-                  onClick={handleVerificationClick}
-                  className="absolute w-12 h-12 bg-green-500 rounded-full hover:bg-green-600 transition-transform hover:scale-110 shadow-lg"
-                  style={{
-                    left: `${verificationDot.x}%`,
-                    top: `${verificationDot.y}%`,
-                    transform: "translate(-50%, -50%)",
-                  }}
-                  aria-label="Click to verify"
-                />
-              </div>
-              <p className="text-xs text-slate-500 mt-3 text-center">
-                Challenge will auto-hide in 10 seconds if not completed
-              </p>
-            </Card>
-          </div>
-        )}
       </div>
     </div>
   );

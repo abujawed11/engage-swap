@@ -194,6 +194,70 @@ function validateDailyCap(cap) {
   return null; // valid
 }
 
+/**
+ * Validate watch duration
+ * - Must be between 30 and 120 seconds (inclusive)
+ * - Must be in 15-second increments (30, 45, 60, 75, 90, 105, 120)
+ */
+function validateWatchDuration(duration) {
+  const num = Number(duration);
+
+  if (!Number.isInteger(num)) {
+    return 'Watch duration must be a whole number';
+  }
+
+  if (num < 30) {
+    return 'Watch duration must be at least 30 seconds';
+  }
+
+  if (num > 120) {
+    return 'Watch duration cannot exceed 120 seconds';
+  }
+
+  // Check if it's in 15-second increments from 30
+  if ((num - 30) % 15 !== 0) {
+    return 'Watch duration must be in 15-second increments (30, 45, 60, 75, 90, 105, 120)';
+  }
+
+  return null; // valid
+}
+
+/**
+ * Calculate the number of steps for watch duration pricing
+ * Steps = (duration - 30) / 15
+ */
+function calculateDurationSteps(duration) {
+  return (duration - 30) / 15;
+}
+
+/**
+ * Calculate the extra cost based on watch duration
+ * Extra = 5 × steps, where steps = (duration - 30) / 15
+ */
+function calculateDurationExtraCost(duration) {
+  const steps = calculateDurationSteps(duration);
+  return 5 * steps;
+}
+
+/**
+ * Calculate total campaign cost including duration-based pricing
+ * Total = (baseCoins × totalClicks) + (5 × steps)
+ * The extra cost is NOT per visit, it's a flat fee for the entire campaign
+ */
+function calculateTotalCampaignCost(baseCoins, watchDuration, totalClicks) {
+  const baseCost = baseCoins * totalClicks;
+  const extraCost = calculateDurationExtraCost(watchDuration);
+  return baseCost + extraCost;
+}
+
+/**
+ * Round decimal coins to 3 decimal places for ledger entries
+ * Use this when writing to database to ensure consistency
+ */
+function roundCoins(amount) {
+  return Math.round(amount * 1000) / 1000;
+}
+
 module.exports = {
   validateUsername,
   validateEmail,
@@ -203,4 +267,9 @@ module.exports = {
   validateCampaignTitle,
   validateCoinsPerVisit,
   validateDailyCap,
+  validateWatchDuration,
+  calculateDurationSteps,
+  calculateDurationExtraCost,
+  calculateTotalCampaignCost,
+  roundCoins,
 };

@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { createVisitToken, verifyAndConsumeToken } = require('../utils/visitToken');
 const { generatePublicId } = require('../utils/publicId');
+const { roundCoins } = require('../utils/validation');
 
 const router = express.Router();
 
@@ -19,7 +20,7 @@ router.get('/queue', async (req, res, next) => {
     const userId = req.user.id;
 
     const [campaigns] = await db.query(
-      `SELECT id, public_id, title, url, coins_per_visit, total_clicks, clicks_served, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, created_at
        FROM campaigns
        WHERE user_id != ? AND is_paused = 0 AND clicks_served < total_clicks
        ORDER BY created_at DESC
@@ -53,7 +54,7 @@ router.post('/start', async (req, res, next) => {
 
     // Fetch campaign
     const [campaigns] = await db.query(
-      `SELECT id, user_id, is_paused, coins_per_visit, total_clicks, clicks_served
+      `SELECT id, user_id, is_paused, coins_per_visit, watch_duration, total_clicks, clicks_served
        FROM campaigns
        WHERE id = ?
        LIMIT 1`,
@@ -108,6 +109,7 @@ router.post('/start', async (req, res, next) => {
       token,
       expires_at: expiresAt,
       coins_per_visit: campaign.coins_per_visit,
+      watch_duration: campaign.watch_duration,
     });
   } catch (err) {
     next(err);
@@ -176,7 +178,7 @@ router.post('/claim', async (req, res, next) => {
     try {
       // Re-fetch campaign with FOR UPDATE lock
       const [campaigns] = await connection.query(
-        `SELECT id, user_id, is_paused, coins_per_visit, total_clicks, clicks_served
+        `SELECT id, user_id, is_paused, coins_per_visit, watch_duration, total_clicks, clicks_served
          FROM campaigns
          WHERE id = ?
          FOR UPDATE`,
@@ -232,11 +234,23 @@ router.post('/claim', async (req, res, next) => {
         });
       }
 
-      // Calculate actual reward based on engagement tier
-      // Passive tier (20s, low activity) = 50% of coins
-      // Active tier (30s, high activity + verification) = 100% of coins
-      const rewardMultiplier = rewardTier === 'active' ? 1.0 : 0.5;
-      const coinsAwarded = Math.floor(campaign.coins_per_visit * rewardMultiplier);
+      // ENFORCE WATCH DURATION REQUIREMENT
+      // User must meet the campaign's required watch duration to earn coins
+      const requiredDuration = campaign.watch_duration;
+      if (activeTime < requiredDuration) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          error: {
+            code: 'INSUFFICIENT_WATCH_TIME',
+            message: `You must watch for at least ${requiredDuration} seconds. You only watched for ${activeTime} seconds.`,
+          },
+        });
+      }
+
+      // Calculate reward
+      // Visitor earns the BASE coins_per_visit (the duration fee is a separate upfront cost for the campaigner)
+      const coinsAwarded = roundCoins(campaign.coins_per_visit);
 
       // Credit coins to visitor
       // Note: Campaign owner already paid upfront during campaign creation,
@@ -278,7 +292,8 @@ router.post('/claim', async (req, res, next) => {
         success: true,
         coins_earned: coinsAwarded,
         new_balance: users[0].coins,
-        reward_tier: rewardTier,
+        watch_duration_required: requiredDuration,
+        active_time_recorded: activeTime,
       });
     } catch (err) {
       await connection.rollback();
