@@ -11,6 +11,7 @@ const {
   roundCoins,
 } = require('../utils/validation');
 const { generatePublicId } = require('../utils/publicId');
+const { validateCampaignQuestions } = require('../utils/questionValidation');
 
 const router = express.Router();
 
@@ -50,6 +51,7 @@ router.post('/', async (req, res, next) => {
     const baseCoinsPerVisit = req.body.coins_per_visit;
     const watchDuration = req.body.watch_duration !== undefined ? req.body.watch_duration : 30; // Default to 30s
     const totalClicks = req.body.total_clicks;
+    const questions = req.body.questions; // Array of 5 questions
 
     // Validate title
     const titleError = validateCampaignTitle(title);
@@ -88,6 +90,14 @@ router.post('/', async (req, res, next) => {
     if (capError) {
       return res.status(422).json({
         error: { code: 'VALIDATION_ERROR', message: capError.replace('Daily cap', 'Total clicks') },
+      });
+    }
+
+    // Validate questions (must be exactly 5 with valid configurations)
+    const questionsError = validateCampaignQuestions(questions);
+    if (questionsError) {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: questionsError },
       });
     }
 
@@ -147,6 +157,16 @@ router.post('/', async (req, res, next) => {
       // Generate and set public_id
       const publicId = generatePublicId('CMP', campaignId);
       await connection.query('UPDATE campaigns SET public_id = ? WHERE id = ?', [publicId, campaignId]);
+
+      // Insert campaign questions
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        await connection.query(
+          `INSERT INTO campaign_questions (campaign_id, question_id, question_order, input_type, config)
+           VALUES (?, ?, ?, ?, ?)`,
+          [campaignId, q.question_id, i + 1, q.input_type, JSON.stringify(q.config)]
+        );
+      }
 
       // Fetch created campaign
       const [campaigns] = await connection.query(

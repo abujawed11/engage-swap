@@ -248,9 +248,40 @@ router.post('/claim', async (req, res, next) => {
         });
       }
 
-      // Calculate reward
-      // Visitor earns the BASE coins_per_visit (the duration fee is a separate upfront cost for the campaigner)
-      const coinsAwarded = roundCoins(campaign.coins_per_visit);
+      // CHECK QUIZ COMPLETION REQUIREMENT
+      // User must complete and pass the quiz to earn coins
+      const [quizAttempts] = await connection.query(
+        'SELECT passed, reward_amount FROM quiz_attempts WHERE visit_token = ?',
+        [token]
+      );
+
+      if (quizAttempts.length === 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          error: {
+            code: 'QUIZ_NOT_COMPLETED',
+            message: 'You must complete the quiz before claiming your reward.',
+          },
+        });
+      }
+
+      const quizResult = quizAttempts[0];
+
+      if (!quizResult.passed) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          error: {
+            code: 'QUIZ_NOT_PASSED',
+            message: 'You must pass the quiz (minimum 3 correct answers) to earn coins.',
+          },
+        });
+      }
+
+      // Calculate reward from quiz result
+      // Use the reward_amount from quiz_attempts (already calculated with partial rewards)
+      const coinsAwarded = roundCoins(quizResult.reward_amount);
 
       // Credit coins to visitor
       // Note: Campaign owner already paid upfront during campaign creation,
@@ -266,12 +297,12 @@ router.post('/claim', async (req, res, next) => {
         [campaignId]
       );
 
-      // Record visit with actual coins awarded
+      // Record visit with actual coins awarded and visit_token for quiz tracking
       const today = new Date().toISOString().slice(0, 10);
       const [visitResult] = await connection.query(
-        `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, visit_date)
-         VALUES (?, ?, ?, ?, ?)`,
-        [userId, campaignId, campaign.user_id, coinsAwarded, today]
+        `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, visit_date, visit_token)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, campaignId, campaign.user_id, coinsAwarded, today, token]
       );
 
       // Generate and set public_id for visit

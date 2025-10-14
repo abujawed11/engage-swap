@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
+import QuizModal from "../components/QuizModal";
 import { earn as earnAPI } from "../lib/api";
 import { useApp } from "../lib/appState";
 import { formatCoins, formatCoinsValue } from "../lib/coins";
@@ -40,6 +41,11 @@ export default function Gateway() {
   // UI state
   const [isClaiming, setIsClaiming] = useState(false);
   const [error, setError] = useState("");
+
+  // Quiz state
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizCompleted, setQuizCompleted] = useState(false);
+  const [quizResult, setQuizResult] = useState(null);
 
   // Refs
   const intervalRef = useRef(null);
@@ -189,6 +195,8 @@ export default function Gateway() {
         // Check if user has reached the required watch duration
         if (newTime >= requiredDuration) {
           setIsComplete(true);
+          // Show quiz modal when watch duration is complete
+          setShowQuiz(true);
         }
 
         return newTime;
@@ -223,10 +231,38 @@ export default function Gateway() {
   }, [verificationToken, activeTime, mouseMovements, isComplete]);
 
   const progress = (activeTime / requiredDuration) * 100;
-  const canClaim = isComplete;
+  const canClaim = isComplete && quizCompleted;
+
+  const handleQuizComplete = (result) => {
+    setQuizResult(result);
+    setQuizCompleted(true);
+    setShowQuiz(false);
+
+    // Show result message
+    if (result.passed) {
+      setError('');
+    } else {
+      setError(`Quiz failed! You got ${result.correct_count}/5 correct. You need at least 3 correct answers to earn coins.`);
+    }
+  };
+
+  const handleQuizError = (errorMessage) => {
+    setError(errorMessage);
+  };
+
+  const handleQuizCancel = () => {
+    setShowQuiz(false);
+    setError('Quiz cancelled. You can retake it anytime by refreshing or re-entering the gateway.');
+  };
 
   const handleClaim = async () => {
     if (!canClaim || isClaiming) return;
+
+    // Check if quiz was passed
+    if (!quizResult || !quizResult.passed) {
+      setError('You must pass the quiz to claim your reward');
+      return;
+    }
 
     setIsClaiming(true);
     setError("");
@@ -313,10 +349,16 @@ export default function Gateway() {
               </div>
               <div className="text-right">
                 <div className="text-2xl font-bold text-slate-800">
-                  {formatCoins(coinsToEarn)}
+                  {quizResult ? formatCoins(quizResult.reward_amount) : formatCoins(coinsToEarn)}
                 </div>
                 <div className="text-sm text-slate-600">
-                  {isComplete ? "Ready to claim" : "In progress"}
+                  {quizCompleted
+                    ? quizResult?.passed
+                      ? `${quizResult.correct_count}/5 correct (${Math.round(quizResult.multiplier * 100)}%)`
+                      : "Failed quiz"
+                    : isComplete
+                      ? "Take quiz to claim"
+                      : "In progress"}
                 </div>
               </div>
             </div>
@@ -339,11 +381,19 @@ export default function Gateway() {
               )}
               {!isPaused && !isComplete && popupOpen && (
                 <p className="text-teal-700 font-medium">
-                  ✅ Counting! Stay on the popup for {requiredDuration - activeTime}s more to earn {formatCoins(coinsToEarn)}
+                  ✅ Counting! Stay on the popup for {requiredDuration - activeTime}s more
                 </p>
               )}
-              {isComplete && (
-                <p className="text-green-700 font-medium text-lg">🎉 Complete! Switch back here to claim your reward</p>
+              {isComplete && !quizCompleted && (
+                <p className="text-blue-700 font-medium text-lg">📝 Watch complete! Take the quiz to claim your reward</p>
+              )}
+              {quizCompleted && quizResult?.passed && (
+                <p className="text-green-700 font-medium text-lg">
+                  🎉 Quiz passed! You earned {formatCoins(quizResult.reward_amount)} ({Math.round(quizResult.multiplier * 100)}% reward)
+                </p>
+              )}
+              {quizCompleted && !quizResult?.passed && (
+                <p className="text-red-700 font-medium text-lg">❌ Quiz failed. Need at least 3 correct answers.</p>
               )}
             </div>
           </div>
@@ -421,10 +471,29 @@ export default function Gateway() {
             {isClaiming
               ? "Claiming..."
               : canClaim
-                ? `Claim Reward (${formatCoinsValue(coinsToEarn)} coins)`
-                : `Wait ${requiredDuration - activeTime}s to unlock reward`}
+                ? `Claim Reward (${formatCoinsValue(quizResult?.reward_amount || 0)} coins)`
+                : !isComplete
+                  ? `Wait ${requiredDuration - activeTime}s to unlock quiz`
+                  : !quizCompleted
+                    ? "Complete the quiz first"
+                    : quizResult?.passed
+                      ? "Claim your reward!"
+                      : "Quiz failed - No reward"}
           </Button>
         </Card>
+
+        {/* Quiz Modal */}
+        {showQuiz && (
+          <QuizModal
+            campaignId={campaign.id}
+            verificationToken={verificationToken}
+            onComplete={handleQuizComplete}
+            onError={handleQuizError}
+            onCancel={handleQuizCancel}
+            popupRef={popupRef}
+            campaignUrl={campaign.url}
+          />
+        )}
       </div>
     </div>
   );

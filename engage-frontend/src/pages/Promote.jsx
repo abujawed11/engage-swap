@@ -3,6 +3,7 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Label from "../components/ui/Label";
+import QuestionAuthoring from "../components/QuestionAuthoring";
 import { campaigns as campaignsAPI } from "../lib/api";
 import { useApp } from "../lib/appState";
 import {
@@ -34,8 +35,10 @@ export default function Promote() {
     coins_per_visit: 1,
     watch_duration: DEFAULT_WATCH_DURATION,
     total_clicks: 20,
+    questions: [],
   });
   const [error, setError] = useState("");
+  const [questionError, setQuestionError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -75,9 +78,51 @@ export default function Promote() {
     setForm((f) => ({ ...f, [name]: name === "title" || name === "url" ? value : Number(value) }));
   };
 
+  const handleQuestionsChange = (questions) => {
+    setForm(f => ({ ...f, questions }));
+    setQuestionError("");
+  };
+
+  const validateQuestions = () => {
+    if (!form.questions || form.questions.length !== 5) {
+      return "Exactly 5 questions must be configured.";
+    }
+
+    for (let i = 0; i < form.questions.length; i++) {
+      const q = form.questions[i];
+
+      if (!q.question_id) {
+        return `Question ${i + 1}: Please select a question from the bank.`;
+      }
+
+      if (q.input_type === "mcq" || q.input_type === "dropdown") {
+        if (!q.config.options || q.config.options.length < 3) {
+          return `Question ${i + 1}: Must have at least 3 options.`;
+        }
+
+        const hasCorrect = q.config.options.some(opt => opt.is_correct);
+        if (!hasCorrect) {
+          return `Question ${i + 1}: One option must be marked as correct.`;
+        }
+
+        const emptyOptions = q.config.options.filter(opt => !opt.text.trim());
+        if (emptyOptions.length > 0) {
+          return `Question ${i + 1}: All options must have text.`;
+        }
+      } else if (q.input_type === "free_text") {
+        if (!q.config.correct_answer || !q.config.correct_answer.trim()) {
+          return `Question ${i + 1}: Correct answer is required.`;
+        }
+      }
+    }
+
+    return null;
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError("");
+    setQuestionError("");
 
     // Basic validation
     if (!form.title.trim()) return setError("Title is required.");
@@ -88,6 +133,13 @@ export default function Promote() {
     if (durationError) return setError(durationError);
 
     if (form.total_clicks < 1) return setError("Total clicks must be at least 1.");
+
+    // Validate questions
+    const questionsError = validateQuestions();
+    if (questionsError) {
+      setQuestionError(questionsError);
+      return;
+    }
 
     setLoading(true);
 
@@ -107,7 +159,14 @@ export default function Promote() {
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
 
-      setForm({ title: "", url: "", coins_per_visit: 1, watch_duration: DEFAULT_WATCH_DURATION, total_clicks: 20 });
+      setForm({
+        title: "",
+        url: "",
+        coins_per_visit: 1,
+        watch_duration: DEFAULT_WATCH_DURATION,
+        total_clicks: 20,
+        questions: []
+      });
       await fetchCampaigns();
     } catch (err) {
       setError(err.message);
@@ -149,11 +208,12 @@ export default function Promote() {
   };
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="space-y-6">
+      {/* Create Campaign Form - Full Width */}
       <Card>
         <h2 className="text-2xl font-semibold">Create Campaign</h2>
         <p className="mt-2 text-slate-600">
-          Define your landing URL and how many coins you’ll spend per verified visit.
+          Define your landing URL and how many coins you'll spend per verified visit.
         </p>
 
         <form onSubmit={submit} className="mt-6 space-y-4">
@@ -245,6 +305,13 @@ export default function Promote() {
               </p>
             </div>
           </div>
+
+          {/* Question Authoring */}
+          <QuestionAuthoring
+            questions={form.questions}
+            onChange={handleQuestionsChange}
+            error={questionError}
+          />
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 

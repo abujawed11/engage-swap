@@ -140,3 +140,17 @@ export const earn = {
     });
   },
 };
+
+// ─── Quiz API ───
+export const quiz = {
+  async getQuestions(campaignId) {
+    return apiCall(`/quiz/${campaignId}`, { method: "GET" });
+  },
+
+  async submitAnswers(visitToken, answers) {
+    return apiCall("/quiz/submit", {
+      method: "POST",
+      body: JSON.stringify({ visit_token: visitToken, answers }),
+    });
+  },
+};

@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const db = require('../db');
 
-const TOKEN_EXPIRY_SECONDS = 120; // 2 minutes
+const TOKEN_EXPIRY_SECONDS = 600; // 10 minutes (enough time for watch duration + quiz)
 
 /**
  * Generate a secure random token
