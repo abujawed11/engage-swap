@@ -289,6 +289,9 @@ export default function Gateway() {
         state: {
           showToast: true,
           earnedCoins: data.coins_earned,
+          isConsolation: data.is_consolation || false,
+          consolationMessage: data.message,
+          consolationDescription: data.description,
         },
       });
     } catch (err) {

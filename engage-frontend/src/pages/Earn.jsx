@@ -15,24 +15,52 @@ export default function Earn() {
   const location = useLocation();
   const [campaigns, setCampaigns] = useState([]);
   const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [isInCooldown, setIsInCooldown] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [earnedCoins, setEarnedCoins] = useState(0);
+  const [isConsolation, setIsConsolation] = useState(false);
+  const [consolationMessage, setConsolationMessage] = useState('');
+  const [consolationDescription, setConsolationDescription] = useState('');
   const [error, setError] = useState("");
 
   // Check if returning from gateway with toast
   useEffect(() => {
     if (location.state?.showToast) {
       setEarnedCoins(location.state.earnedCoins);
+      setIsConsolation(location.state.isConsolation || false);
+      setConsolationMessage(location.state.consolationMessage || '');
+      setConsolationDescription(location.state.consolationDescription || '');
       setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
+      setTimeout(() => setShowToast(false), 5000); // 5s for consolation messages
 
       // Set cooldown
       setCooldownUntil(Date.now() + COOLDOWN_MS);
+      setIsInCooldown(true);
 
       // Clear navigation state
       window.history.replaceState({}, document.title);
     }
   }, [location]);
+
+  // Cooldown timer - checks every 100ms and updates state when cooldown expires
+  useEffect(() => {
+    if (cooldownUntil === 0) return;
+
+    const checkCooldown = () => {
+      if (Date.now() >= cooldownUntil) {
+        setIsInCooldown(false);
+        setCooldownUntil(0);
+      }
+    };
+
+    // Check immediately
+    checkCooldown();
+
+    // Then check every 100ms
+    const interval = setInterval(checkCooldown, 100);
+
+    return () => clearInterval(interval);
+  }, [cooldownUntil]);
 
   // Fetch earn queue on mount
   useEffect(() => {
@@ -68,8 +96,6 @@ export default function Earn() {
       fetchQueue();
     }
   };
-
-  const isInCooldown = Date.now() < cooldownUntil;
 
   return (
     <div className="space-y-6">
@@ -149,10 +175,27 @@ export default function Earn() {
       )}
 
       {/* Toast Notification */}
-      {showToast && (
-        <div className="fixed bottom-6 right-6 bg-teal-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50">
+      {showToast && !isConsolation && (
+        <div className="fixed bottom-6 right-6 bg-teal-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-slide-up">
           <span className="text-xl">🎉</span>
           <span className="font-medium">+{earnedCoins} coins earned!</span>
+        </div>
+      )}
+
+      {/* Consolation Toast Notification */}
+      {showToast && isConsolation && (
+        <div className="fixed bottom-6 right-6 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-xl max-w-sm z-50 animate-slide-up">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">💙</span>
+            <div>
+              <div className="font-bold text-lg mb-1">{consolationMessage}</div>
+              <p className="text-sm opacity-90 mb-2">{consolationDescription}</p>
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <span>+{earnedCoins} coins</span>
+                <span className="bg-white bg-opacity-20 px-2 py-0.5 rounded">Goodwill Reward</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

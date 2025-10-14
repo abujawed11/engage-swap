@@ -3,6 +3,7 @@ const db = require('../db');
 const { createVisitToken, verifyAndConsumeToken } = require('../utils/visitToken');
 const { generatePublicId } = require('../utils/publicId');
 const { roundCoins } = require('../utils/validation');
+const { checkConsolationEligibility, issueConsolationReward, CONSOLATION_CONFIG } = require('../utils/consolationRewards');
 
 const router = express.Router();
 
@@ -223,15 +224,12 @@ router.post('/claim', async (req, res, next) => {
       }
 
       // Check if campaign has reached total clicks limit
-      if (campaign.clicks_served >= campaign.total_clicks) {
-        await connection.rollback();
-        connection.release();
-        return res.status(400).json({
-          error: {
-            code: 'CLICKS_LIMIT_REACHED',
-            message: 'Campaign has reached its total clicks limit',
-          },
-        });
+      // Instead of failing immediately, we'll check for consolation eligibility
+      const isExhausted = campaign.clicks_served >= campaign.total_clicks;
+      let exhaustionReason = null;
+
+      if (isExhausted) {
+        exhaustionReason = CONSOLATION_CONFIG.REASON.EXHAUSTED_VISITS_CAP;
       }
 
       // ENFORCE WATCH DURATION REQUIREMENT
@@ -279,6 +277,57 @@ router.post('/claim', async (req, res, next) => {
         });
       }
 
+      // === CAMPAIGN EXHAUSTION HANDLING WITH CONSOLATION ===
+
+      // If campaign is exhausted, try to issue consolation reward
+      if (isExhausted) {
+        console.log('[Claim] Campaign exhausted, checking consolation eligibility...');
+
+        // Check if user is eligible for consolation
+        const eligibility = await checkConsolationEligibility(connection, userId, campaignId, token);
+
+        if (eligibility.eligible) {
+          // Issue platform-funded consolation reward
+          const consolation = await issueConsolationReward(
+            connection,
+            userId,
+            campaignId,
+            token,
+            exhaustionReason
+          );
+
+          console.log('[Claim] Consolation issued:', consolation);
+
+          await connection.commit();
+          connection.release();
+
+          return res.status(200).json({
+            success: true,
+            is_consolation: true,
+            coins_earned: consolation.amount,
+            new_balance: consolation.newBalance,
+            message: 'Campaign just filled up',
+            description: `You completed the task, but the campaign reached its limit a moment ago. We've added a goodwill reward of ${consolation.amount} coin to your balance.`,
+          });
+        } else {
+          // Not eligible for consolation - plain exhaustion
+          console.log('[Claim] Not eligible for consolation:', eligibility.reason);
+
+          await connection.rollback();
+          connection.release();
+
+          return res.status(400).json({
+            error: {
+              code: 'CAMPAIGN_EXHAUSTED',
+              message: 'Campaign reached its limit. No reward available at this time.',
+              reason: eligibility.reason,
+            },
+          });
+        }
+      }
+
+      // === NORMAL REWARD FLOW (Campaign has capacity) ===
+
       // Calculate reward from quiz result
       // Use the reward_amount from quiz_attempts (already calculated with partial rewards)
       const coinsAwarded = roundCoins(quizResult.reward_amount);
@@ -300,8 +349,8 @@ router.post('/claim', async (req, res, next) => {
       // Record visit with actual coins awarded and visit_token for quiz tracking
       const today = new Date().toISOString().slice(0, 10);
       const [visitResult] = await connection.query(
-        `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, visit_date, visit_token)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, is_consolation, visit_date, visit_token)
+         VALUES (?, ?, ?, ?, 0, ?, ?)`,
         [userId, campaignId, campaign.user_id, coinsAwarded, today, token]
       );
 
@@ -321,6 +370,7 @@ router.post('/claim', async (req, res, next) => {
 
       res.status(200).json({
         success: true,
+        is_consolation: false,
         coins_earned: coinsAwarded,
         new_balance: users[0].coins,
         watch_duration_required: requiredDuration,
