@@ -13,6 +13,7 @@ export default function QuizModal({ campaignId, verificationToken, onComplete, o
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState('');
 
   // Fetch quiz questions on mount
   useEffect(() => {
@@ -44,6 +45,10 @@ export default function QuizModal({ campaignId, verificationToken, onComplete, o
       ...prev,
       [questionId]: answer,
     }));
+    // Clear validation error when user makes a change
+    if (validationError) {
+      setValidationError('');
+    }
   };
 
   const handleViewWebsite = () => {
@@ -93,10 +98,15 @@ export default function QuizModal({ campaignId, verificationToken, onComplete, o
   };
 
   const handleSubmit = async () => {
+    // Clear any previous validation errors
+    setValidationError('');
+
     // Validate all questions are answered
     const unanswered = Object.entries(answers).filter(([_, answer]) => !answer || answer.trim() === '');
     if (unanswered.length > 0) {
-      onError('Please answer all questions before submitting');
+      const errorMsg = `Please answer all ${quiz.questions.length} questions before submitting (${unanswered.length} unanswered)`;
+      setValidationError(errorMsg);
+      onError(errorMsg);
       return;
     }
 
@@ -113,6 +123,7 @@ export default function QuizModal({ campaignId, verificationToken, onComplete, o
       onComplete(result);
     } catch (error) {
       console.error('Error submitting quiz:', error);
+      setValidationError(error.message || 'Failed to submit quiz');
       onError(error.message || 'Failed to submit quiz');
     } finally {
       setSubmitting(false);
@@ -245,6 +256,13 @@ export default function QuizModal({ campaignId, verificationToken, onComplete, o
 
         {/* Footer */}
         <div className="px-6 py-4 bg-slate-50 rounded-b-lg border-t border-slate-200 space-y-3">
+          {/* Validation Error */}
+          {validationError && (
+            <div className="bg-red-50 border border-red-300 rounded-lg px-4 py-3">
+              <p className="text-sm text-red-700 font-medium">⚠️ {validationError}</p>
+            </div>
+          )}
+
           <div className="flex items-center gap-3">
             <Button
               onClick={handleViewWebsite}
