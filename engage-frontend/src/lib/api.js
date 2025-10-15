@@ -143,8 +143,9 @@ export const earn = {
 
 // ─── Quiz API ───
 export const quiz = {
-  async getQuestions(campaignId) {
-    return apiCall(`/quiz/${campaignId}`, { method: "GET" });
+  async getQuestions(campaignId, visitToken) {
+    const params = visitToken ? `?visit_token=${encodeURIComponent(visitToken)}` : '';
+    return apiCall(`/quiz/${campaignId}${params}`, { method: "GET" });
   },
 
   async submitAnswers(visitToken, answers) {

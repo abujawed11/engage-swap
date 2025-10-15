@@ -10,6 +10,7 @@ const { getQuestionById } = require('../utils/questionBank');
 const { checkFreeTextAnswer } = require('../utils/questionValidation');
 const { calculateQuizReward } = require('../utils/quizRewards');
 const { roundCoins, calculateActualCoinsPerVisit } = require('../utils/validation');
+const { checkConsolationEligibility, issueConsolationReward, CONSOLATION_CONFIG } = require('../utils/consolationRewards');
 
 /**
  * Fisher-Yates shuffle for randomization
@@ -33,21 +34,97 @@ router.get('/:campaignId', async (req, res, next) => {
   try {
     const campaignId = req.params.campaignId;
     const userId = req.user.id;
+    const visitToken = req.query.visit_token; // Pass visit_token for consolation tracking
 
     const connection = await db.getConnection();
 
     try {
-      // Fetch campaign to verify it exists and get owner
+      await connection.beginTransaction();
+
+      // Fetch campaign with lock to check state (ACTIVE, PAUSED, DELETED)
       const [campaigns] = await connection.query(
-        'SELECT id, user_id, coins_per_visit, watch_duration, total_clicks FROM campaigns WHERE id = ? AND is_paused = 0',
+        'SELECT id, user_id, coins_per_visit, watch_duration, total_clicks, is_paused, is_finished FROM campaigns WHERE id = ? FOR UPDATE',
         [campaignId]
       );
 
+      // CHECKPOINT 1: Campaign DELETED (not found in DB)
       if (campaigns.length === 0) {
+        console.log('[Quiz GET] Campaign deleted during timer:', { campaignId, userId, visitToken });
+
+        // Check if user is eligible for consolation
+        if (visitToken) {
+          console.log('[Quiz GET] Checking consolation eligibility...');
+          const eligibility = await checkConsolationEligibility(connection, userId, campaignId, visitToken, CONSOLATION_CONFIG.REASON.CAMPAIGN_DELETED);
+          console.log('[Quiz GET] Consolation eligibility:', eligibility);
+
+          if (eligibility.eligible) {
+            console.log('[Quiz GET] Issuing consolation reward...');
+            const consolation = await issueConsolationReward(
+              connection,
+              userId,
+              campaignId,
+              visitToken,
+              CONSOLATION_CONFIG.REASON.CAMPAIGN_DELETED
+            );
+
+            await connection.commit();
+            connection.release();
+
+            return res.status(200).json({
+              outcome: 'CONSOLATION_INTERRUPTED',
+              reason: 'DELETED',
+              coins: consolation.amount,
+              new_balance: consolation.newBalance,
+              message: 'Campaign was deleted while you were completing the task. We added a goodwill reward of 1.0 coin.'
+            });
+          } else {
+            console.log('[Quiz GET] Not eligible for consolation:', eligibility.reason);
+          }
+        } else {
+          console.log('[Quiz GET] No visit token provided, cannot issue consolation');
+        }
+
+        await connection.rollback();
+        connection.release();
         return res.status(404).json({ error: 'Campaign not found' });
       }
 
       const campaign = campaigns[0];
+
+      // CHECKPOINT 2: Campaign PAUSED
+      if (campaign.is_paused) {
+        console.log('[Quiz GET] Campaign paused during timer:', { campaignId, userId });
+
+        // Check if user is eligible for consolation
+        if (visitToken) {
+          const eligibility = await checkConsolationEligibility(connection, userId, campaignId, visitToken, CONSOLATION_CONFIG.REASON.CAMPAIGN_PAUSED);
+
+          if (eligibility.eligible) {
+            const consolation = await issueConsolationReward(
+              connection,
+              userId,
+              campaignId,
+              visitToken,
+              CONSOLATION_CONFIG.REASON.CAMPAIGN_PAUSED
+            );
+
+            await connection.commit();
+            connection.release();
+
+            return res.status(200).json({
+              outcome: 'CONSOLATION_INTERRUPTED',
+              reason: 'PAUSED',
+              coins: consolation.amount,
+              new_balance: consolation.newBalance,
+              message: 'Campaign was paused while you were completing the task. We added a goodwill reward of 1.0 coin.'
+            });
+          }
+        }
+
+        await connection.rollback();
+        connection.release();
+        return res.status(403).json({ error: 'Campaign is paused' });
+      }
 
       // Users cannot take quiz on their own campaigns
       if (campaign.user_id === userId) {
@@ -107,11 +184,16 @@ router.get('/:campaignId', async (req, res, next) => {
       // Randomize question order
       const randomizedQuestions = shuffle(questions);
 
+      await connection.commit();
+
       res.status(200).json({
         campaign_id: campaignId,
         full_reward: roundCoins(actualCoinsPerVisit),
         questions: randomizedQuestions,
       });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
     } finally {
       connection.release();
     }
@@ -162,17 +244,18 @@ router.post('/submit', async (req, res, next) => {
         });
       }
 
-      // Fetch visit token to validate and get campaign info
+      // Fetch visit token to validate and get campaign info with campaign state
       const [tokens] = await connection.query(
-        `SELECT vt.campaign_id, vt.user_id, c.coins_per_visit, c.watch_duration, c.total_clicks
+        `SELECT vt.campaign_id, vt.user_id, c.coins_per_visit, c.watch_duration, c.total_clicks, c.is_paused, c.is_finished
          FROM visit_tokens vt
-         JOIN campaigns c ON vt.campaign_id = c.id
-         WHERE vt.token = ?`,
+         LEFT JOIN campaigns c ON vt.campaign_id = c.id
+         WHERE vt.token = ? FOR UPDATE`,
         [visit_token]
       );
 
       if (tokens.length === 0) {
         await connection.rollback();
+        connection.release();
         return res.status(404).json({ error: 'Visit token not found' });
       }
 
@@ -180,7 +263,79 @@ router.post('/submit', async (req, res, next) => {
 
       if (tokenData.user_id !== userId) {
         await connection.rollback();
+        connection.release();
         return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      // CHECKPOINT: Campaign DELETED (campaign_id is NULL or LEFT JOIN returned null)
+      if (!tokenData.campaign_id || !tokenData.coins_per_visit) {
+        console.log('[Quiz Submit] Campaign deleted during quiz:', { campaignId: tokenData.campaign_id, userId });
+
+        const eligibility = await checkConsolationEligibility(connection, userId, tokenData.campaign_id, visit_token, CONSOLATION_CONFIG.REASON.CAMPAIGN_DELETED);
+        console.log('[Quiz Submit] Consolation eligibility:', eligibility);
+
+        if (eligibility.eligible) {
+          const consolation = await issueConsolationReward(
+            connection,
+            userId,
+            tokenData.campaign_id,
+            visit_token,
+            CONSOLATION_CONFIG.REASON.CAMPAIGN_DELETED
+          );
+
+          await connection.commit();
+          connection.release();
+
+          return res.status(200).json({
+            outcome: 'CONSOLATION_INTERRUPTED',
+            reason: 'DELETED',
+            coins: consolation.amount,
+            new_balance: consolation.newBalance,
+            message: 'Campaign was deleted during your quiz attempt. We added a goodwill reward of 1.0 coin.'
+          });
+        }
+
+        // Not eligible for consolation - explain why
+        console.log('[Quiz Submit] Not eligible for consolation:', eligibility.reason);
+        await connection.rollback();
+        connection.release();
+        return res.status(404).json({
+          error: 'Campaign no longer exists',
+          consolation_ineligible: true,
+          reason: eligibility.reason || 'Consolation limits exceeded'
+        });
+      }
+
+      // CHECKPOINT: Campaign PAUSED
+      if (tokenData.is_paused) {
+        console.log('[Quiz Submit] Campaign paused during quiz:', { campaignId: tokenData.campaign_id, userId });
+
+        const eligibility = await checkConsolationEligibility(connection, userId, tokenData.campaign_id, visit_token, CONSOLATION_CONFIG.REASON.CAMPAIGN_PAUSED);
+
+        if (eligibility.eligible) {
+          const consolation = await issueConsolationReward(
+            connection,
+            userId,
+            tokenData.campaign_id,
+            visit_token,
+            CONSOLATION_CONFIG.REASON.CAMPAIGN_PAUSED
+          );
+
+          await connection.commit();
+          connection.release();
+
+          return res.status(200).json({
+            outcome: 'CONSOLATION_INTERRUPTED',
+            reason: 'PAUSED',
+            coins: consolation.amount,
+            new_balance: consolation.newBalance,
+            message: 'Campaign was paused during your quiz attempt. We added a goodwill reward of 1.0 coin.'
+          });
+        }
+
+        await connection.rollback();
+        connection.release();
+        return res.status(403).json({ error: 'Campaign is paused' });
       }
 
       // Calculate actual coins per visit (includes duration bonus)

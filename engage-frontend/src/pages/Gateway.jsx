@@ -240,6 +240,33 @@ export default function Gateway() {
   const canClaim = isComplete && quizCompleted;
 
   const handleQuizComplete = (result) => {
+    // Check if campaign was interrupted (PAUSED/DELETED)
+    if (result.outcome === 'CONSOLATION_INTERRUPTED') {
+      // Update user balance with consolation amount
+      if (user && result.new_balance) {
+        setUser({ ...user, coins: result.new_balance });
+      }
+
+      // Close popup if still open
+      if (popupRef.current && !popupRef.current.closed) {
+        popupRef.current.close();
+      }
+
+      // Navigate back to earn page with consolation message
+      navigate("/earn", {
+        replace: true,
+        state: {
+          showToast: true,
+          earnedCoins: result.coins,
+          isConsolation: true,
+          consolationMessage: result.message,
+          consolationDescription: 'Campaign was interrupted. Try another campaign to continue earning!',
+        },
+      });
+      return;
+    }
+
+    // Normal quiz completion flow
     setQuizResult(result);
     setQuizCompleted(true);
     setShowQuiz(false);

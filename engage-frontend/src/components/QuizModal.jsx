@@ -23,7 +23,21 @@ export default function QuizModal({ campaignId, verificationToken, onComplete, o
   const fetchQuiz = async () => {
     try {
       setLoading(true);
-      const data = await quizAPI.getQuestions(campaignId);
+      const data = await quizAPI.getQuestions(campaignId, verificationToken);
+
+      // Check if campaign was interrupted (PAUSED/DELETED)
+      if (data.outcome === 'CONSOLATION_INTERRUPTED') {
+        setLoading(false);
+        onComplete({
+          outcome: 'CONSOLATION_INTERRUPTED',
+          reason: data.reason,
+          coins: data.coins,
+          new_balance: data.new_balance,
+          message: data.message
+        });
+        return;
+      }
+
       setQuiz(data);
 
       // Initialize answers object
@@ -120,6 +134,19 @@ export default function QuizModal({ campaignId, verificationToken, onComplete, o
       }));
 
       const result = await quizAPI.submitAnswers(verificationToken, formattedAnswers);
+
+      // Check if campaign was interrupted during quiz (PAUSED/DELETED)
+      if (result.outcome === 'CONSOLATION_INTERRUPTED') {
+        onComplete({
+          outcome: 'CONSOLATION_INTERRUPTED',
+          reason: result.reason,
+          coins: result.coins,
+          new_balance: result.new_balance,
+          message: result.message
+        });
+        return;
+      }
+
       onComplete(result);
     } catch (error) {
       console.error('Error submitting quiz:', error);
