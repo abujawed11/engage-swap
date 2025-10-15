@@ -24,7 +24,7 @@ router.get('/', async (req, res, next) => {
     const userId = req.user.id;
 
     const [campaigns] = await db.query(
-      `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, is_paused, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, is_paused, is_finished, created_at
        FROM campaigns
        WHERE user_id = ?
        ORDER BY created_at DESC`,
@@ -170,7 +170,7 @@ router.post('/', async (req, res, next) => {
 
       // Fetch created campaign
       const [campaigns] = await connection.query(
-        `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, is_paused, created_at
+        `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, is_paused, is_finished, created_at
          FROM campaigns
          WHERE id = ?`,
         [campaignId]
@@ -303,7 +303,7 @@ router.patch('/:id', async (req, res, next) => {
 
     // Fetch updated campaign
     const [campaigns] = await db.query(
-      `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, is_paused, created_at
+      `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, is_paused, is_finished, created_at
        FROM campaigns
        WHERE id = ?`,
       [campaignId]

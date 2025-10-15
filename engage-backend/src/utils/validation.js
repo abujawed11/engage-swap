@@ -154,12 +154,19 @@ function validateCampaignTitle(title) {
 
 /**
  * Validate coins per visit
+ * Allows decimal values with up to 1 decimal place
  */
 function validateCoinsPerVisit(coins) {
   const num = Number(coins);
 
-  if (!Number.isInteger(num)) {
-    return 'Coins per visit must be a whole number';
+  if (isNaN(num)) {
+    return 'Coins per visit must be a valid number';
+  }
+
+  // Check if it has more than 1 decimal place
+  const decimalPlaces = (num.toString().split('.')[1] || '').length;
+  if (decimalPlaces > 1) {
+    return 'Coins per visit can have at most 1 decimal place';
   }
 
   if (num < 1) {

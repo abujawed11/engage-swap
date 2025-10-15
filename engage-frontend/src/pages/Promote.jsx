@@ -75,7 +75,17 @@ export default function Promote() {
 
   const onChange = (e) => {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: name === "title" || name === "url" ? value : Number(value) }));
+    if (name === "title" || name === "url") {
+      setForm((f) => ({ ...f, [name]: value }));
+    } else if (name === "coins_per_visit") {
+      // Round to 1 decimal place for coins_per_visit
+      const numValue = parseFloat(value);
+      if (!isNaN(numValue)) {
+        setForm((f) => ({ ...f, [name]: Math.round(numValue * 10) / 10 }));
+      }
+    } else {
+      setForm((f) => ({ ...f, [name]: Number(value) }));
+    }
   };
 
   const handleQuestionsChange = (questions) => {
@@ -202,6 +212,30 @@ export default function Promote() {
       }
 
       await fetchCampaigns();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleReAdd = async (campaign) => {
+    // Pre-populate the form with the finished campaign's data
+    // First, we need to fetch the campaign's questions
+    try {
+      // For now, we'll set the basic fields and let user reconfigure questions
+      setForm({
+        title: campaign.title,
+        url: campaign.url,
+        coins_per_visit: campaign.coins_per_visit,
+        watch_duration: campaign.watch_duration || DEFAULT_WATCH_DURATION,
+        total_clicks: campaign.total_clicks,
+        questions: [] // User needs to reconfigure questions
+      });
+
+      // Scroll to the top where the form is
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      // Show a message to user
+      setError("Campaign details loaded. Please reconfigure the questions and submit to create a new campaign.");
     } catch (err) {
       setError(err.message);
     }
@@ -338,12 +372,14 @@ export default function Promote() {
                         <div className="font-medium">{c.title}</div>
                         <span
                           className={`text-xs px-2 py-0.5 rounded ${
-                            c.is_paused
+                            c.is_finished
+                              ? "bg-green-100 text-green-800"
+                              : c.is_paused
                               ? "bg-slate-200 text-slate-700"
                               : "bg-teal-100 text-teal-800"
                           }`}
                         >
-                          {c.is_paused ? "Paused" : "Active"}
+                          {c.is_finished ? "Finished" : c.is_paused ? "Paused" : "Active"}
                         </span>
                       </div>
                       <a href={c.url} target="_blank" rel="noreferrer" className="text-sm text-teal-700 break-all">
@@ -361,12 +397,21 @@ export default function Promote() {
                       </div>
                     </div>
                     <div className="flex items-start gap-2 shrink-0">
-                      <Button
-                        onClick={() => handlePauseResume(c)}
-                        className="text-xs px-2 py-1 h-auto"
-                      >
-                        {c.is_paused ? "Resume" : "Pause"}
-                      </Button>
+                      {c.is_finished ? (
+                        <Button
+                          onClick={() => handleReAdd(c)}
+                          className="text-xs px-2 py-1 h-auto bg-green-600 hover:bg-green-700"
+                        >
+                          Re-add
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => handlePauseResume(c)}
+                          className="text-xs px-2 py-1 h-auto"
+                        >
+                          {c.is_paused ? "Resume" : "Pause"}
+                        </Button>
+                      )}
                       <Button
                         onClick={() => handleDelete(c.id, c.title)}
                         className="text-xs px-2 py-1 h-auto bg-red-600 hover:bg-red-700"

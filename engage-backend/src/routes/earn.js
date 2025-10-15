@@ -23,7 +23,7 @@ router.get('/queue', async (req, res, next) => {
     const [campaigns] = await db.query(
       `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, created_at
        FROM campaigns
-       WHERE user_id != ? AND is_paused = 0 AND clicks_served < total_clicks
+       WHERE user_id != ? AND is_paused = 0 AND is_finished = 0 AND clicks_served < total_clicks
        ORDER BY created_at DESC
        LIMIT 10`,
       [userId]
@@ -341,8 +341,15 @@ router.post('/claim', async (req, res, next) => {
       );
 
       // Increment clicks_served counter for the campaign
+      // Also mark campaign as finished if this is the last click
       await connection.query(
-        'UPDATE campaigns SET clicks_served = clicks_served + 1 WHERE id = ?',
+        `UPDATE campaigns
+         SET clicks_served = clicks_served + 1,
+             is_finished = CASE
+               WHEN clicks_served + 1 >= total_clicks THEN 1
+               ELSE is_finished
+             END
+         WHERE id = ?`,
         [campaignId]
       );
 
