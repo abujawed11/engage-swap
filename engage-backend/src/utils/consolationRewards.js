@@ -13,11 +13,11 @@ const { roundCoins } = require('./validation');
  * @param {number} userId - User ID
  * @param {number} campaignId - Campaign ID
  * @param {string} visitToken - Visit token (for idempotency)
- * @param {string} reason - Reason for consolation (determines which limits apply)
+ * @param {string} reason - Reason for consolation
  * @returns {Object} { eligible: boolean, reason?: string }
  */
 async function checkConsolationEligibility(connection, userId, campaignId, visitToken, reason) {
-  // 1. Check if visit already received consolation (always check - idempotency)
+  // 1. Check if visit already received consolation (idempotency check)
   const [existingConsolation] = await connection.query(
     'SELECT id FROM consolation_rewards WHERE visit_token = ?',
     [visitToken]
@@ -27,7 +27,7 @@ async function checkConsolationEligibility(connection, userId, campaignId, visit
     return { eligible: false, reason: 'Already received consolation for this visit' };
   }
 
-  // 2. Check if visit already received normal reward (always check)
+  // 2. Check if visit already received normal reward
   const [existingVisit] = await connection.query(
     'SELECT id FROM visits WHERE visit_token = ?',
     [visitToken]
@@ -37,70 +37,7 @@ async function checkConsolationEligibility(connection, userId, campaignId, visit
     return { eligible: false, reason: 'Already received normal reward' };
   }
 
-  // For CAMPAIGN_PAUSED and CAMPAIGN_DELETED: No limits (not user's fault)
-  // For EXHAUSTED_*: Apply abuse prevention limits
-  const isInterruptionReason = reason === CONSOLATION_CONFIG.REASON.CAMPAIGN_PAUSED ||
-                                reason === CONSOLATION_CONFIG.REASON.CAMPAIGN_DELETED;
-
-  if (isInterruptionReason) {
-    // No additional limits for interruption - it's not the visitor's fault
-    return { eligible: true };
-  }
-
-  // Below limits only apply for exhaustion reasons (EXHAUSTED_VISITS_CAP, EXHAUSTED_COINS)
-
-  // 3. Check user daily limit (rolling 24h)
-  const [userDailyCount] = await connection.query(
-    `SELECT COUNT(*) as count FROM consolation_rewards
-     WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
-    [userId]
-  );
-
-  if (userDailyCount[0].count >= CONSOLATION_CONFIG.USER_DAILY_LIMIT) {
-    return { eligible: false, reason: 'User daily consolation limit reached' };
-  }
-
-  // 4. Check user+campaign cooldown (12h) - only if campaign still exists
-  if (campaignId) {
-    const [userCampaignRecent] = await connection.query(
-      `SELECT id FROM consolation_rewards
-       WHERE user_id = ? AND campaign_id = ?
-       AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-       LIMIT 1`,
-      [userId, campaignId, CONSOLATION_CONFIG.USER_CAMPAIGN_COOLDOWN_HOURS]
-    );
-
-    if (userCampaignRecent.length > 0) {
-      return { eligible: false, reason: 'Cooldown period for this campaign not elapsed' };
-    }
-  }
-
-  // 5. Check campaign daily limit - only if campaign still exists
-  const today = new Date().toISOString().slice(0, 10);
-  if (campaignId) {
-    const [campaignDailyCount] = await connection.query(
-      `SELECT COUNT(*) as count FROM consolation_rewards
-       WHERE campaign_id = ? AND DATE(created_at) = ?`,
-      [campaignId, today]
-    );
-
-    if (campaignDailyCount[0].count >= CONSOLATION_CONFIG.CAMPAIGN_DAILY_LIMIT) {
-      return { eligible: false, reason: 'Campaign daily consolation limit reached' };
-    }
-  }
-
-  // 6. Check global daily budget
-  const [globalDailySum] = await connection.query(
-    `SELECT COALESCE(SUM(amount), 0) as total FROM consolation_rewards
-     WHERE DATE(created_at) = ?`,
-    [today]
-  );
-
-  const globalSpent = parseFloat(globalDailySum[0].total);
-  if (globalSpent >= CONSOLATION_CONFIG.GLOBAL_DAILY_BUDGET) {
-    return { eligible: false, reason: 'Platform daily consolation budget exceeded' };
-  }
-
+  // No other limits - consolation is always given to be fair to visitors
   return { eligible: true };
 }
 
