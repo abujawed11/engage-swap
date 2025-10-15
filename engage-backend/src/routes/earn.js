@@ -340,18 +340,35 @@ router.post('/claim', async (req, res, next) => {
         [coinsAwarded, userId]
       );
 
+      // Debug: Log current campaign state before update
+      console.log('[Claim] Campaign state before update:', {
+        campaignId: campaign.id,
+        clicks_served: campaign.clicks_served,
+        total_clicks: campaign.total_clicks,
+        clicks_served_type: typeof campaign.clicks_served,
+        total_clicks_type: typeof campaign.total_clicks,
+        will_be_finished: (campaign.clicks_served + 1) === campaign.total_clicks
+      });
+
       // Increment clicks_served counter for the campaign
-      // Also mark campaign as finished if this is the last click
+      // First increment, then check separately if we should mark as finished
       await connection.query(
-        `UPDATE campaigns
-         SET clicks_served = clicks_served + 1,
-             is_finished = CASE
-               WHEN clicks_served + 1 >= total_clicks THEN 1
-               ELSE is_finished
-             END
-         WHERE id = ?`,
+        'UPDATE campaigns SET clicks_served = clicks_served + 1 WHERE id = ?',
         [campaignId]
       );
+
+      // Now check if campaign is finished (clicks_served now equals total_clicks)
+      await connection.query(
+        'UPDATE campaigns SET is_finished = 1 WHERE id = ? AND clicks_served = total_clicks',
+        [campaignId]
+      );
+
+      // Debug: Check campaign state after update
+      const [updatedCampaign] = await connection.query(
+        'SELECT clicks_served, total_clicks, is_finished FROM campaigns WHERE id = ?',
+        [campaignId]
+      );
+      console.log('[Claim] Campaign state after update:', updatedCampaign[0]);
 
       // Record visit with actual coins awarded and visit_token for quiz tracking
       const today = new Date().toISOString().slice(0, 10);
