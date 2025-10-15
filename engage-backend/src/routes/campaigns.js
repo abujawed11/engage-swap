@@ -355,12 +355,49 @@ router.delete('/:id', async (req, res, next) => {
 
       const campaign = campaigns[0];
 
-      // Calculate refund based on clicks_served
-      // Total paid = (baseCoins × totalClicks) + (5 × steps)
-      // Coins used = baseCoins × clicks_served  (the extra duration fee is upfront, not per-visit)
-      const totalPaid = roundCoins(calculateTotalCampaignCost(campaign.coins_per_visit, campaign.watch_duration, campaign.total_clicks));
-      const coinsUsed = roundCoins(campaign.clicks_served * campaign.coins_per_visit);
-      const refundAmount = roundCoins(totalPaid - coinsUsed);
+      // Convert to numbers for calculation
+      const V = Number(campaign.coins_per_visit);     // Base coins per visit
+      const C = Number(campaign.total_clicks);        // Total clicks required
+      const k = Number(campaign.clicks_served);       // Clicks completed
+      const duration = Number(campaign.watch_duration);
+
+      // Calculate ExtraTime (flat fee for duration beyond 30s)
+      const steps = (duration - 30) / 15;
+      const extraTime = 5 * steps;
+
+      // Calculate refund using correct proration formula:
+      // refund = (C - k) × V  +  ExtraTime × ((C - k) / C)
+      // This is equivalent to: refund = (C - k) × (V + ExtraTime / C)
+      const remainingClicks = C - k;
+      const extraTimeProrated = extraTime * (remainingClicks / C);
+      const refundAmount = roundCoins((remainingClicks * V) + extraTimeProrated);
+
+      // Log refund calculation for audit
+      // console.log('[Campaign Delete] Refund calculation:', {
+      //   campaignId: campaign.id,
+      //   V: V,
+      //   C: C,
+      //   k: k,
+      //   duration: duration,
+      //   extraTime: extraTime,
+      //   remainingClicks: remainingClicks,
+      //   extraTimeProrated: extraTimeProrated,
+      //   refundAmount: refundAmount
+      // });
+
+      // Safety check: refund should never exceed total paid
+      const totalPaid = roundCoins(calculateTotalCampaignCost(V, duration, C));
+      if (refundAmount > totalPaid) {
+        console.error('[Campaign Delete] Refund exceeds total paid!', {
+          refundAmount,
+          totalPaid
+        });
+        await connection.rollback();
+        connection.release();
+        return res.status(500).json({
+          error: { code: 'REFUND_ERROR', message: 'Refund calculation error' },
+        });
+      }
 
       // Refund unused coins to user
       if (refundAmount > 0) {
