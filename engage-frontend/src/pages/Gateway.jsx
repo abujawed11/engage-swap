@@ -6,7 +6,7 @@ import Button from "../components/ui/Button";
 import QuizModal from "../components/QuizModal";
 import { earn as earnAPI } from "../lib/api";
 import { useApp } from "../lib/appState";
-import { formatCoins, formatCoinsValue } from "../lib/coins";
+import { formatCoins, formatCoinsValue, calculateActualCoinsPerVisit, roundCoins } from "../lib/coins";
 
 const HEARTBEAT_INTERVAL = 5000; // Send metrics every 5 seconds
 
@@ -20,8 +20,14 @@ export default function Gateway() {
   // Get required watch duration from campaign (default to 30s if not set)
   const requiredDuration = campaign?.watch_duration || 30;
 
-  // Visitor earns the base coins_per_visit (not the total campaign cost)
-  const coinsToEarn = campaign?.coins_per_visit || 0;
+  // Calculate the actual coins the visitor will earn (includes duration bonus)
+  const actualCoinsToEarn = campaign
+    ? roundCoins(calculateActualCoinsPerVisit(
+        campaign.coins_per_visit,
+        campaign.watch_duration || 30,
+        campaign.total_clicks
+      ))
+    : 0;
 
   // Time tracking
   const [activeTime, setActiveTime] = useState(0);
@@ -352,7 +358,7 @@ export default function Gateway() {
               </div>
               <div className="text-right">
                 <div className="text-2xl font-bold text-slate-800">
-                  {quizResult ? formatCoins(quizResult.reward_amount) : formatCoins(coinsToEarn)}
+                  {quizResult ? formatCoins(quizResult.reward_amount) : formatCoins(actualCoinsToEarn)}
                 </div>
                 <div className="text-sm text-slate-600">
                   {quizCompleted
@@ -361,7 +367,7 @@ export default function Gateway() {
                       : "Failed quiz"
                     : isComplete
                       ? "Take quiz to claim"
-                      : "In progress"}
+                      : "Max possible (100%)"}
                 </div>
               </div>
             </div>

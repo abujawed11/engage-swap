@@ -107,3 +107,31 @@ export function validateWatchDuration(duration) {
 
   return null; // valid
 }
+
+/**
+ * Calculate actual coins per visit that visitor should receive
+ * This includes the base coins PLUS the per-visit portion of the duration extra cost
+ * Formula: baseCoins + (durationExtraCost / totalClicks)
+ *
+ * Example:
+ * - Base: 10 coins, Duration: 60s, Total clicks: 10
+ * - Duration extra cost: 5 × 2 = 10 coins (for entire campaign)
+ * - Per-visit portion: 10 / 10 = 1 coin per visit
+ * - Actual reward: 10 + 1 = 11 coins per visit
+ */
+export function calculateActualCoinsPerVisit(baseCoins, watchDuration, totalClicks) {
+  const baseCoinsNum = Number(baseCoins);
+  const watchDurationNum = Number(watchDuration);
+  const totalClicksNum = Number(totalClicks);
+
+  const extraCost = calculateDurationExtraCost(watchDurationNum);
+  const extraPerVisit = extraCost / totalClicksNum;
+  return baseCoinsNum + extraPerVisit;
+}
+
+/**
+ * Round decimal coins to 1 decimal place for display
+ */
+export function roundCoins(amount) {
+  return Math.round(amount * 10) / 10;
+}
