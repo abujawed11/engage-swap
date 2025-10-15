@@ -202,10 +202,13 @@ export default function Promote() {
 
       // Update user balance with refund
       if (user && result.refunded > 0) {
-        setUser({ ...user, coins: user.coins + result.refunded });
+        // Ensure both values are numbers to avoid string concatenation
+        const currentCoins = Number(user.coins) || 0;
+        const refundAmount = Number(result.refunded) || 0;
+        setUser({ ...user, coins: currentCoins + refundAmount });
 
         // Show refund toast
-        setToastMessage(`${result.refunded} coins refunded`);
+        setToastMessage(`${formatCoinsValue(refundAmount)} coins refunded`);
         setToastType("refund");
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
