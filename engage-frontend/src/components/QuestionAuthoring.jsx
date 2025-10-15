@@ -3,126 +3,146 @@ import Label from "./ui/Label";
 import Input from "./ui/Input";
 import Button from "./ui/Button";
 
-// Question bank with 20 standard questions and smart default options
+// Question bank with 20 standard questions and smart default options for ALL input types
 const QUESTION_BANK = [
   {
     id: 1,
     text: "What is the primary color used in the website's logo?",
     category: "visual",
-    defaultOptions: ["Blue", "Red", "Green", "Black"]
+    defaultOptions: ["Blue", "Red", "Green", "Black"],
+    defaultAnswer: "Blue"
   },
   {
     id: 2,
     text: "What is the main product or service offered?",
     category: "content",
-    defaultOptions: ["Software Solutions", "Consulting Services", "E-commerce Platform", "Digital Marketing"]
+    defaultOptions: ["Software Solutions", "Consulting Services", "E-commerce Platform", "Digital Marketing"],
+    defaultAnswer: "Software Solutions"
   },
   {
     id: 3,
     text: "What is the company or website name?",
     category: "content",
+    defaultOptions: ["TechCorp", "Innovation Labs", "Digital Solutions", "Global Services"],
     defaultAnswer: "Company Name"
   },
   {
     id: 4,
     text: "What is the tagline or slogan displayed on the homepage?",
     category: "content",
+    defaultOptions: ["Your Success Partner", "Innovation Delivered", "Building Tomorrow", "Trusted Worldwide"],
     defaultAnswer: "Your Success Partner"
   },
   {
     id: 5,
     text: "How many main navigation menu items are there?",
     category: "visual",
-    defaultOptions: ["3", "4", "5", "6"]
+    defaultOptions: ["3", "4", "5", "6"],
+    defaultAnswer: "5"
   },
   {
     id: 6,
     text: "What is the call-to-action text on the main button?",
     category: "content",
-    defaultOptions: ["Get Started", "Sign Up Free", "Learn More", "Contact Us"]
+    defaultOptions: ["Get Started", "Sign Up Free", "Learn More", "Contact Us"],
+    defaultAnswer: "Get Started"
   },
   {
     id: 7,
     text: "What email address or contact method is displayed?",
     category: "content",
+    defaultOptions: ["contact@example.com", "info@company.com", "support@website.com", "hello@business.com"],
     defaultAnswer: "contact@example.com"
   },
   {
     id: 8,
     text: "What year was the company founded (if mentioned)?",
     category: "content",
-    defaultOptions: ["2020", "2021", "2022", "2023"]
+    defaultOptions: ["2020", "2021", "2022", "2023"],
+    defaultAnswer: "2020"
   },
   {
     id: 9,
     text: "What social media platform is linked first?",
     category: "content",
-    defaultOptions: ["Facebook", "Twitter", "LinkedIn", "Instagram"]
+    defaultOptions: ["Facebook", "Twitter", "LinkedIn", "Instagram"],
+    defaultAnswer: "Facebook"
   },
   {
     id: 10,
     text: "What is the first benefit or feature mentioned?",
     category: "content",
+    defaultOptions: ["Fast Performance", "Easy to Use", "Secure & Reliable", "24/7 Support"],
     defaultAnswer: "Fast Performance"
   },
   {
     id: 11,
     text: "What is the background color of the header?",
     category: "visual",
-    defaultOptions: ["White", "Black", "Blue", "Gray"]
+    defaultOptions: ["White", "Black", "Blue", "Gray"],
+    defaultAnswer: "White"
   },
   {
     id: 12,
     text: "What type of pricing model is offered?",
     category: "content",
-    defaultOptions: ["Subscription", "One-time Payment", "Freemium", "Pay-per-use"]
+    defaultOptions: ["Subscription", "One-time Payment", "Freemium", "Pay-per-use"],
+    defaultAnswer: "Subscription"
   },
   {
     id: 13,
     text: "What is mentioned in the hero section headline?",
     category: "content",
+    defaultOptions: ["Transform Your Business", "Welcome to Innovation", "Empowering Success", "Your Digital Partner"],
     defaultAnswer: "Transform Your Business"
   },
   {
     id: 14,
     text: "How many testimonials or reviews are visible?",
     category: "visual",
-    defaultOptions: ["2", "3", "4", "5"]
+    defaultOptions: ["2", "3", "4", "5"],
+    defaultAnswer: "3"
   },
   {
     id: 15,
     text: "What is the footer copyright text?",
     category: "content",
+    defaultOptions: ["© 2024 Company. All rights reserved.", "© 2024 All Rights Reserved", "Copyright 2024", "© Company 2024"],
     defaultAnswer: "© 2024 Company. All rights reserved."
   },
   {
     id: 16,
     text: "What industry or sector does the website serve?",
     category: "content",
-    defaultOptions: ["Technology", "Healthcare", "Finance", "Education"]
+    defaultOptions: ["Technology", "Healthcare", "Finance", "Education"],
+    defaultAnswer: "Technology"
   },
   {
     id: 17,
     text: "What is the first word in the main headline?",
     category: "content",
+    defaultOptions: ["Welcome", "Discover", "Transform", "Experience"],
     defaultAnswer: "Welcome"
   },
   {
     id: 18,
     text: "What icon or image is used in the hero section?",
     category: "visual",
-    defaultOptions: ["Laptop", "People", "Graph", "Building"]
+    defaultOptions: ["Laptop", "People", "Graph", "Building"],
+    defaultAnswer: "Laptop"
   },
   {
     id: 19,
     text: "What customer support option is available?",
     category: "content",
-    defaultOptions: ["Live Chat", "Email Support", "Phone Support", "Help Center"]
+    defaultOptions: ["Live Chat", "Email Support", "Phone Support", "Help Center"],
+    defaultAnswer: "Live Chat"
   },
   {
     id: 20,
     text: "What location or region is mentioned?",
     category: "content",
+    defaultOptions: ["United States", "United Kingdom", "Europe", "Global"],
     defaultAnswer: "United States"
   },
 ];
