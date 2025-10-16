@@ -4,6 +4,12 @@ const { createVisitToken, verifyAndConsumeToken } = require('../utils/visitToken
 const { generatePublicId } = require('../utils/publicId');
 const { roundCoins } = require('../utils/validation');
 const { checkConsolationEligibility, issueConsolationReward, CONSOLATION_CONFIG } = require('../utils/consolationRewards');
+const {
+  checkCampaignClaimEligibility,
+  recordSuccessfulClaim,
+  updateRotationTracking,
+  getEligibleCampaignsWithRotation,
+} = require('../utils/campaignLimits');
 
 const router = express.Router();
 
@@ -12,24 +18,49 @@ const router = express.Router();
  * Get eligible campaigns for the authenticated user to visit
  * Returns campaigns that:
  * - Are not owned by the user
- * - Are not paused
+ * - Are not paused or finished
+ * - Respect rotation windows based on value tier
+ * - Randomized for fairness
  * - Limited to 10 items
- * - Ordered by created_at DESC (will add fair rotation later)
  */
 router.get('/queue', async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    const [campaigns] = await db.query(
-      `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, created_at
-       FROM campaigns
-       WHERE user_id != ? AND is_paused = 0 AND is_finished = 0 AND clicks_served < total_clicks
-       ORDER BY created_at DESC
-       LIMIT 10`,
-      [userId]
-    );
+    let campaigns;
 
-    res.status(200).json({ campaigns });
+    try {
+      // Use fair rotation logic to get eligible campaigns
+      campaigns = await getEligibleCampaignsWithRotation(userId, 10);
+    } catch (rotationErr) {
+      // If rotation tables don't exist yet, fall back to simple query
+      console.warn('[Queue] Fair rotation not available (tables may not exist yet), using fallback query');
+
+      const [fallbackCampaigns] = await db.query(
+        `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, created_at
+         FROM campaigns
+         WHERE user_id != ? AND is_paused = 0 AND is_finished = 0 AND clicks_served < total_clicks
+         ORDER BY created_at DESC
+         LIMIT 10`,
+        [userId]
+      );
+      campaigns = fallbackCampaigns;
+    }
+
+    // Remove internal tracking fields before sending to client
+    const cleanedCampaigns = campaigns.map(c => ({
+      id: c.id,
+      public_id: c.public_id,
+      title: c.title,
+      url: c.url,
+      coins_per_visit: c.coins_per_visit,
+      watch_duration: c.watch_duration,
+      total_clicks: c.total_clicks,
+      clicks_served: c.clicks_served,
+      created_at: c.created_at,
+    }));
+
+    res.status(200).json({ campaigns: cleanedCampaigns });
   } catch (err) {
     next(err);
   }
@@ -38,6 +69,7 @@ router.get('/queue', async (req, res, next) => {
 /**
  * POST /earn/start
  * Start a visit - generate verification token
+ * NOTE: No enforcement at start - limits are checked at claim time
  */
 router.post('/start', async (req, res, next) => {
   try {
@@ -53,9 +85,9 @@ router.post('/start', async (req, res, next) => {
       });
     }
 
-    // Fetch campaign
+    // Fetch campaign (no lock needed - just check availability)
     const [campaigns] = await db.query(
-      `SELECT id, user_id, is_paused, coins_per_visit, watch_duration, total_clicks, clicks_served
+      `SELECT id, user_id, is_paused, is_finished, coins_per_visit, watch_duration, total_clicks, clicks_served
        FROM campaigns
        WHERE id = ?
        LIMIT 1`,
@@ -93,6 +125,16 @@ router.post('/start', async (req, res, next) => {
       });
     }
 
+    // Check if finished
+    if (campaign.is_finished) {
+      return res.status(400).json({
+        error: {
+          code: 'CAMPAIGN_FINISHED',
+          message: 'Campaign has finished',
+        },
+      });
+    }
+
     // Check if campaign has reached total clicks limit
     if (campaign.clicks_served >= campaign.total_clicks) {
       return res.status(400).json({
@@ -103,9 +145,10 @@ router.post('/start', async (req, res, next) => {
       });
     }
 
-    // Generate token
+    // Generate token (create visit_tokens record)
     const { token, expiresAt } = await createVisitToken(userId, campaignId);
 
+    // All checks passed - return token
     res.status(200).json({
       token,
       expires_at: expiresAt,
@@ -277,6 +320,34 @@ router.post('/claim', async (req, res, next) => {
         });
       }
 
+      // === ENFORCE CLAIM LIMITS (DAILY LIMIT & COOLDOWN) ===
+      // Check if user can claim this campaign (if tables exist)
+      try {
+        const claimEligibility = await checkCampaignClaimEligibility(
+          connection,
+          userId,
+          campaignId,
+          Number(campaign.coins_per_visit)
+        );
+
+        if (!claimEligibility.allowed) {
+          await connection.rollback();
+          connection.release();
+
+          // Return user-friendly limit message
+          return res.status(400).json({
+            error: {
+              code: claimEligibility.outcome,
+              message: claimEligibility.message,
+              retry_after_sec: claimEligibility.retry_after_sec || undefined,
+            },
+          });
+        }
+      } catch (claimCheckErr) {
+        // If enforcement tables don't exist yet, skip enforcement
+        console.warn('[Claim] Skipping claim enforcement (tables may not exist yet):', claimCheckErr.message);
+      }
+
       // === CAMPAIGN EXHAUSTION HANDLING WITH CONSOLATION ===
 
       // If campaign is exhausted, try to issue consolation reward
@@ -388,6 +459,13 @@ router.post('/claim', async (req, res, next) => {
         'SELECT coins FROM users WHERE id = ?',
         [userId]
       );
+
+      // Record successful claim (increment counter and timestamp) - if tables exist
+      try {
+        await recordSuccessfulClaim(connection, userId, campaignId, Number(campaign.coins_per_visit));
+      } catch (recordErr) {
+        console.warn('[Claim] Could not record successful claim (table may not exist yet):', recordErr.message);
+      }
 
       await connection.commit();
       connection.release();

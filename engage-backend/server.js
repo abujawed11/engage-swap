@@ -12,6 +12,7 @@ const userRouter = require('./src/routes/user');
 const campaignsRouter = require('./src/routes/campaigns');
 const earnRouter = require('./src/routes/earn');
 const quizRouter = require('./src/routes/quiz');
+const analyticsRouter = require('./src/routes/analytics');
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use('/', userRouter);
 app.use('/campaigns', authRequired, campaignsWriteLimiter, campaignsRouter);
 app.use('/earn', authRequired, earnRouter);
 app.use('/quiz', authRequired, quizRouter);
+app.use('/analytics', authRequired, analyticsRouter);
 
 // ─── Error Handlers ───
 app.use(notFoundHandler);
