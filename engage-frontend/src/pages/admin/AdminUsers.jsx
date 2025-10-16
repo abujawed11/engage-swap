@@ -109,6 +109,7 @@ export default function AdminUsers() {
                     <th className="text-left px-4 py-3 text-sm font-semibold">Username</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold">Email</th>
                     <th className="text-right px-4 py-3 text-sm font-semibold">Coins</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold">IP Address</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold">Verified</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold">Joined</th>
                     <th className="text-right px-4 py-3 text-sm font-semibold">Actions</th>
@@ -124,6 +125,9 @@ export default function AdminUsers() {
                       <td className="px-4 py-3 text-sm">{user.email}</td>
                       <td className="px-4 py-3 text-right font-medium text-teal-700">
                         {formatCoinsValue(user.coins)}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600 font-mono">
+                        {user.ip_address || 'N/A'}
                       </td>
                       <td className="px-4 py-3">
                         {user.email_verified_at ? (

@@ -134,7 +134,7 @@ export default function AdminUserDetails() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-300">
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-300">
           <div>
             <div className="text-sm text-slate-600">Status</div>
             <div className="font-medium mt-1">
@@ -152,10 +152,23 @@ export default function AdminUserDetails() {
             </div>
           </div>
           <div>
+            <div className="text-sm text-slate-600">Last Updated</div>
+            <div className="font-medium mt-1">
+              {data.user.updated_at ? new Date(data.user.updated_at).toLocaleDateString() : 'N/A'}
+            </div>
+          </div>
+          <div>
             <div className="text-sm text-slate-600">Admin</div>
             <div className="font-medium mt-1">
               {data.user.is_admin ? 'Yes' : 'No'}
             </div>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-slate-300">
+          <div className="text-sm text-slate-600">IP Address</div>
+          <div className="font-mono text-sm mt-1">
+            {data.user.ip_address || 'Not available'}
           </div>
         </div>
       </Card>

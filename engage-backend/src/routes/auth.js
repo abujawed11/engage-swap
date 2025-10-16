@@ -11,6 +11,7 @@ const {
 const { createOTP, canResendOTP, verifyOTP } = require('../utils/otp');
 const { sendVerificationEmail } = require('../utils/mailer');
 const { generatePublicId } = require('../utils/publicId');
+const { getClientIp } = require('../utils/ipAddress');
 
 const router = express.Router();
 
@@ -71,11 +72,14 @@ router.post('/signup', async (req, res, next) => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
+    // Get client IP address
+    const ipAddress = getClientIp(req);
+
     // Insert user (unverified) with 20 welcome coins
     const [result] = await db.query(
-      `INSERT INTO users (username, username_lower, email, email_lower, password_hash, coins, is_admin, email_verified_at)
-       VALUES (?, ?, ?, ?, ?, 20, 0, NULL)`,
-      [username, usernameLower, email, emailLower, passwordHash]
+      `INSERT INTO users (username, username_lower, email, email_lower, password_hash, coins, is_admin, email_verified_at, ip_address)
+       VALUES (?, ?, ?, ?, ?, 20, 0, NULL, ?)`,
+      [username, usernameLower, email, emailLower, passwordHash, ipAddress]
     );
 
     const userId = result.insertId;
@@ -321,6 +325,13 @@ router.post('/login', async (req, res, next) => {
         canResend: true,
       });
     }
+
+    // Update IP address on login
+    const ipAddress = getClientIp(req);
+    await db.query(
+      'UPDATE users SET ip_address = ? WHERE id = ?',
+      [ipAddress, user.id]
+    );
 
     // Sign JWT
     const token = signToken({

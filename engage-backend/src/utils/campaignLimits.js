@@ -351,14 +351,25 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
 
     // Check cooldown (only for high-value campaigns)
     if (isHighValue && campaign.last_claimed_at && secondsSinceClaim < cooldownSeconds) {
-      const secondsRemaining = cooldownSeconds - secondsSinceClaim;
-      const minutesRemaining = Math.ceil(secondsRemaining / 60);
+      const secondsRemaining = Math.ceil(cooldownSeconds - secondsSinceClaim);
+
+      // Format time based on duration
+      let retryInfo;
+      if (secondsRemaining < 120) {
+        // Show seconds if less than 2 minutes
+        retryInfo = `Available in ${secondsRemaining} second(s)`;
+      } else {
+        // Show minutes for longer cooldowns
+        const minutesRemaining = Math.ceil(secondsRemaining / 60);
+        retryInfo = `Available in ${minutesRemaining} minute(s)`;
+      }
+
       return {
         ...campaign,
         available: false,
         availability_status: 'COOLDOWN',
         status_message: `Cooldown active`,
-        retry_info: `Available in ${minutesRemaining} minute(s)`,
+        retry_info: retryInfo,
         retry_after_seconds: secondsRemaining,
       };
     }

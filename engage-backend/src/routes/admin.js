@@ -99,7 +99,7 @@ router.get('/users', async (req, res, next) => {
     const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
 
     const [users] = await db.query(
-      `SELECT id, public_id, username, email, coins, email_verified_at, created_at
+      `SELECT id, public_id, username, email, coins, email_verified_at, ip_address, created_at, updated_at
        FROM users
        ${whereClause}
        ORDER BY ${sortColumn} ${sortOrder}
@@ -131,7 +131,7 @@ router.get('/users/:id', async (req, res, next) => {
 
     // Get user details
     const [users] = await db.query(
-      `SELECT id, public_id, username, email, coins, is_admin, email_verified_at, created_at
+      `SELECT id, public_id, username, email, coins, is_admin, email_verified_at, ip_address, created_at, updated_at
        FROM users WHERE id = ?`,
       [userId]
     );
