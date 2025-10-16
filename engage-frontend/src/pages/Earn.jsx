@@ -22,6 +22,7 @@ export default function Earn() {
   const [consolationMessage, setConsolationMessage] = useState('');
   const [consolationDescription, setConsolationDescription] = useState('');
   const [error, setError] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Check if returning from gateway with toast
   useEffect(() => {
@@ -71,9 +72,17 @@ export default function Earn() {
     try {
       const data = await earnAPI.getQueue();
       setCampaigns(data.campaigns || []);
+      setError(""); // Clear any previous errors on successful fetch
     } catch (err) {
       console.error("Failed to fetch earn queue:", err);
+      setError("Failed to load campaigns. Please try again.");
     }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchQueue();
+    setTimeout(() => setIsRefreshing(false), 500); // Brief delay for visual feedback
   };
 
   const handleVisit = async (campaign) => {
@@ -123,9 +132,18 @@ export default function Earn() {
       ) : (
         <div className="space-y-4">
           <Card>
-            <h3 className="text-lg font-semibold text-slate-700">
-              Available Campaigns ({campaigns.length})
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-700">
+                Available Campaigns ({campaigns.length})
+              </h3>
+              <Button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="text-sm"
+              >
+                {isRefreshing ? "Refreshing..." : "🔄 Refresh"}
+              </Button>
+            </div>
           </Card>
 
           {campaigns.map((campaign) => (
