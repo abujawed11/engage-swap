@@ -157,15 +157,46 @@ export default function Earn() {
                       style={{ width: `${(campaign.clicks_served / campaign.total_clicks) * 100}%` }}
                     />
                   </div>
+
+                  {/* Availability Status Message */}
+                  {!campaign.available && campaign.status_message && (
+                    <div className={`mt-3 px-3 py-2 rounded border ${
+                      campaign.availability_status === 'LIMIT_REACHED'
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-yellow-50 border-yellow-200'
+                    }`}>
+                      <p className={`text-sm font-medium ${
+                        campaign.availability_status === 'LIMIT_REACHED'
+                          ? 'text-red-800'
+                          : 'text-yellow-800'
+                      }`}>
+                        {campaign.status_message}
+                      </p>
+                      {campaign.retry_info && (
+                        <p className={`text-xs mt-1 ${
+                          campaign.availability_status === 'LIMIT_REACHED'
+                            ? 'text-red-600'
+                            : 'text-yellow-600'
+                        }`}>
+                          {campaign.retry_info}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="shrink-0">
                   <Button
                     onClick={() => handleVisit(campaign)}
-                    disabled={isInCooldown}
+                    disabled={isInCooldown || !campaign.available}
                     className="whitespace-nowrap"
                   >
-                    {isInCooldown ? "Cooldown..." : "Visit & Earn"}
+                    {!campaign.available
+                      ? "Not Available"
+                      : isInCooldown
+                        ? "Cooldown..."
+                        : "Visit & Earn"
+                    }
                   </Button>
                 </div>
               </div>

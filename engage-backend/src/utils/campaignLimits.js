@@ -270,31 +270,23 @@ async function updateRotationTracking(connection, userId, campaignId) {
 }
 
 /**
- * Get eligible campaigns with fair rotation
- * Filters campaigns based on:
- * - Rotation windows
- * - Daily limits (if user has reached limit, hide campaign)
- * - Cooldown period (if user is in cooldown, hide campaign)
+ * Get campaigns with availability status
+ * Shows ALL campaigns but includes status info (available/cooldown/limit_reached)
  * @param {number} userId
  * @param {number} limit
- * @returns {Promise<Array>}
+ * @returns {Promise<Array>} - Campaigns with availability_status field
  */
 async function getEligibleCampaignsWithRotation(userId, limit = 10) {
   const config = await loadConfig();
-  const rotationWindows = config.rotation_windows || { high: 21600, medium: 10800, low: 3600 };
   const valueThresholds = config.value_thresholds || { high: 10, medium: 5 };
   const cooldownSeconds = getCooldownSeconds(config);
   const attemptLimits = config.attempt_limits || { high: 2, medium: 3, low: 5 };
 
-  // Build SQL that filters out campaigns:
-  // 1. Served too recently (rotation window)
-  // 2. User has reached daily limit
-  // 3. User is in cooldown period (for >=10 coin campaigns only)
+  // Get ALL campaigns with user activity data
   const query = `
     SELECT
       c.id, c.public_id, c.title, c.url, c.coins_per_visit, c.watch_duration,
       c.total_clicks, c.clicks_served, c.created_at,
-      crt.last_served_at,
       uca.attempt_count_24h,
       uca.last_claimed_at,
       CASE
@@ -306,52 +298,16 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
         WHEN c.coins_per_visit >= ? THEN ?
         WHEN c.coins_per_visit >= ? THEN ?
         ELSE ?
-      END as rotation_window_seconds,
-      CASE
-        WHEN c.coins_per_visit >= ? THEN ?
-        WHEN c.coins_per_visit >= ? THEN ?
-        ELSE ?
       END as daily_limit,
       TIMESTAMPDIFF(SECOND, uca.last_claimed_at, NOW()) as seconds_since_last_claim,
       TIMESTAMPDIFF(HOUR, uca.last_claimed_at, NOW()) as hours_since_last_claim
     FROM campaigns c
-    LEFT JOIN campaign_rotation_tracking crt ON c.id = crt.campaign_id AND crt.user_id = ?
     LEFT JOIN user_campaign_activity uca ON c.id = uca.campaign_id AND uca.user_id = ?
     WHERE c.user_id != ?
       AND c.is_paused = 0
       AND c.is_finished = 0
       AND c.clicks_served < c.total_clicks
-      -- Rotation window filter
-      AND (
-        crt.last_served_at IS NULL
-        OR TIMESTAMPDIFF(SECOND, crt.last_served_at, NOW()) > (
-          CASE
-            WHEN c.coins_per_visit >= ? THEN ?
-            WHEN c.coins_per_visit >= ? THEN ?
-            ELSE ?
-          END
-        )
-      )
-      -- Daily limit filter: hide if user reached limit within 24h
-      AND (
-        uca.attempt_count_24h IS NULL
-        OR uca.last_claimed_at IS NULL
-        OR TIMESTAMPDIFF(HOUR, uca.last_claimed_at, NOW()) >= 24
-        OR uca.attempt_count_24h < (
-          CASE
-            WHEN c.coins_per_visit >= ? THEN ?
-            WHEN c.coins_per_visit >= ? THEN ?
-            ELSE ?
-          END
-        )
-      )
-      -- Cooldown filter: hide >=10 coin campaigns if claimed within cooldown period
-      AND (
-        c.coins_per_visit < ?
-        OR uca.last_claimed_at IS NULL
-        OR TIMESTAMPDIFF(SECOND, uca.last_claimed_at, NOW()) >= ?
-      )
-    ORDER BY RAND()
+    ORDER BY c.created_at DESC
     LIMIT ?
   `;
 
@@ -359,10 +315,6 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
     // For value_tier CASE
     valueThresholds.high,
     valueThresholds.medium,
-    // For rotation_window_seconds CASE
-    valueThresholds.high, rotationWindows.high,
-    valueThresholds.medium, rotationWindows.medium,
-    rotationWindows.low,
     // For daily_limit CASE
     valueThresholds.high, attemptLimits.high,
     valueThresholds.medium, attemptLimits.medium,
@@ -370,23 +322,57 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
     // For JOIN and WHERE
     userId,
     userId,
-    userId,
-    // For rotation window filter
-    valueThresholds.high, rotationWindows.high,
-    valueThresholds.medium, rotationWindows.medium,
-    rotationWindows.low,
-    // For daily limit filter
-    valueThresholds.high, attemptLimits.high,
-    valueThresholds.medium, attemptLimits.medium,
-    attemptLimits.low,
-    // For cooldown filter (only >=10 coins)
-    valueThresholds.high,
-    cooldownSeconds,
     // LIMIT
     limit
   ]);
 
-  return campaigns;
+  // Add availability status to each campaign
+  const campaignsWithStatus = campaigns.map(campaign => {
+    const attemptCount = campaign.attempt_count_24h || 0;
+    const dailyLimit = campaign.daily_limit;
+    const secondsSinceClaim = campaign.seconds_since_last_claim;
+    const hoursSinceClaim = campaign.hours_since_last_claim;
+    const isHighValue = campaign.coins_per_visit >= valueThresholds.high;
+
+    // Check if limit reached (within last 24h)
+    if (campaign.last_claimed_at && hoursSinceClaim < 24 && attemptCount >= dailyLimit) {
+      const hoursUntilReset = Math.ceil(24 - hoursSinceClaim);
+      return {
+        ...campaign,
+        available: false,
+        availability_status: 'LIMIT_REACHED',
+        status_message: `Daily limit reached (${attemptCount}/${dailyLimit})`,
+        retry_info: `Available in ${hoursUntilReset} hour(s)`,
+        retry_after_seconds: null,
+      };
+    }
+
+    // Check cooldown (only for high-value campaigns)
+    if (isHighValue && campaign.last_claimed_at && secondsSinceClaim < cooldownSeconds) {
+      const secondsRemaining = cooldownSeconds - secondsSinceClaim;
+      const minutesRemaining = Math.ceil(secondsRemaining / 60);
+      return {
+        ...campaign,
+        available: false,
+        availability_status: 'COOLDOWN',
+        status_message: `Cooldown active`,
+        retry_info: `Available in ${minutesRemaining} minute(s)`,
+        retry_after_seconds: secondsRemaining,
+      };
+    }
+
+    // Campaign is available
+    return {
+      ...campaign,
+      available: true,
+      availability_status: 'AVAILABLE',
+      status_message: null,
+      retry_info: null,
+      retry_after_seconds: null,
+    };
+  });
+
+  return campaignsWithStatus;
 }
 
 module.exports = {

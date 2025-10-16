@@ -30,7 +30,7 @@ router.get('/queue', async (req, res, next) => {
     let campaigns;
 
     try {
-      // Use fair rotation logic to get eligible campaigns
+      // Get campaigns with availability status
       campaigns = await getEligibleCampaignsWithRotation(userId, 10);
     } catch (rotationErr) {
       // If rotation tables don't exist yet, fall back to simple query
@@ -44,7 +44,16 @@ router.get('/queue', async (req, res, next) => {
          LIMIT 10`,
         [userId]
       );
-      campaigns = fallbackCampaigns;
+
+      // Add default availability for fallback
+      campaigns = fallbackCampaigns.map(c => ({
+        ...c,
+        available: true,
+        availability_status: 'AVAILABLE',
+        status_message: null,
+        retry_info: null,
+        retry_after_seconds: null,
+      }));
     }
 
     // Remove internal tracking fields before sending to client
@@ -58,6 +67,12 @@ router.get('/queue', async (req, res, next) => {
       total_clicks: c.total_clicks,
       clicks_served: c.clicks_served,
       created_at: c.created_at,
+      // Include availability status
+      available: c.available,
+      availability_status: c.availability_status,
+      status_message: c.status_message,
+      retry_info: c.retry_info,
+      retry_after_seconds: c.retry_after_seconds,
     }));
 
     res.status(200).json({ campaigns: cleanedCampaigns });
