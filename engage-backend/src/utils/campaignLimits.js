@@ -287,6 +287,7 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
     SELECT
       c.id, c.public_id, c.title, c.url, c.coins_per_visit, c.watch_duration,
       c.total_clicks, c.clicks_served, c.created_at,
+      u.username as creator_username,
       uca.attempt_count_24h,
       uca.last_claimed_at,
       CASE
@@ -302,6 +303,7 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
       TIMESTAMPDIFF(SECOND, uca.last_claimed_at, NOW()) as seconds_since_last_claim,
       TIMESTAMPDIFF(HOUR, uca.last_claimed_at, NOW()) as hours_since_last_claim
     FROM campaigns c
+    INNER JOIN users u ON c.user_id = u.id
     LEFT JOIN user_campaign_activity uca ON c.id = uca.campaign_id AND uca.user_id = ?
     WHERE c.user_id != ?
       AND c.is_paused = 0

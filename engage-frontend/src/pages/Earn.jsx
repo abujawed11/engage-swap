@@ -150,7 +150,14 @@ export default function Earn() {
             <Card key={campaign.id}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="text-lg font-semibold">{campaign.title}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-lg font-semibold">{campaign.title}</div>
+                    {campaign.creator_username && (
+                      <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                        by @{campaign.creator_username}
+                      </span>
+                    )}
+                  </div>
                   <a
                     href={campaign.url}
                     target="_blank"

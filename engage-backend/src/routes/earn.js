@@ -37,10 +37,11 @@ router.get('/queue', async (req, res, next) => {
       console.warn('[Queue] Fair rotation not available (tables may not exist yet), using fallback query');
 
       const [fallbackCampaigns] = await db.query(
-        `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, created_at
-         FROM campaigns
-         WHERE user_id != ? AND is_paused = 0 AND is_finished = 0 AND clicks_served < total_clicks
-         ORDER BY created_at DESC
+        `SELECT c.id, c.public_id, c.title, c.url, c.coins_per_visit, c.watch_duration, c.total_clicks, c.clicks_served, c.created_at, u.username as creator_username
+         FROM campaigns c
+         INNER JOIN users u ON c.user_id = u.id
+         WHERE c.user_id != ? AND c.is_paused = 0 AND c.is_finished = 0 AND c.clicks_served < c.total_clicks
+         ORDER BY c.created_at DESC
          LIMIT 10`,
         [userId]
       );
@@ -67,6 +68,7 @@ router.get('/queue', async (req, res, next) => {
       total_clicks: c.total_clicks,
       clicks_served: c.clicks_served,
       created_at: c.created_at,
+      creator_username: c.creator_username,
       // Include availability status
       available: c.available,
       availability_status: c.availability_status,
