@@ -32,7 +32,7 @@ export default function Earn() {
       setConsolationMessage(location.state.consolationMessage || '');
       setConsolationDescription(location.state.consolationDescription || '');
       setShowToast(true);
-      setTimeout(() => setShowToast(false), 5000); // 5s for consolation messages
+      setTimeout(() => setShowToast(false), 8000); // 8s for consolation messages
 
       // Set cooldown
       setCooldownUntil(Date.now() + COOLDOWN_MS);

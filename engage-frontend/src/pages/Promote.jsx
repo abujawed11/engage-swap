@@ -29,6 +29,7 @@ const isValidUrl = (u) => {
 export default function Promote() {
   const { user, setUser } = useApp();
   const [campaigns, setCampaigns] = useState([]);
+  const [activeTab, setActiveTab] = useState("create"); // "create" or "campaigns"
   const [form, setForm] = useState({
     title: "",
     url: "",
@@ -234,8 +235,8 @@ export default function Promote() {
         questions: [] // User needs to reconfigure questions
       });
 
-      // Scroll to the top where the form is
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Switch to create tab
+      setActiveTab("create");
 
       // Show a message to user
       setError("Campaign details loaded. Please reconfigure the questions and submit to create a new campaign.");
@@ -245,15 +246,47 @@ export default function Promote() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Create Campaign Form - Full Width */}
-      <Card>
-        <h2 className="text-2xl font-semibold">Create Campaign</h2>
-        <p className="mt-2 text-slate-600">
-          Define your landing URL and how many coins you'll spend per verified visit.
-        </p>
+    <div>
+      {/* Tab Navigation */}
+      <div className="mb-6 border-b border-slate-200">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab("create")}
+            className={`px-6 py-3 font-semibold transition-colors relative ${
+              activeTab === "create"
+                ? "text-teal-600 border-b-2 border-teal-600"
+                : "text-slate-600 hover:text-slate-800"
+            }`}
+          >
+            Create Campaign
+          </button>
+          <button
+            onClick={() => setActiveTab("campaigns")}
+            className={`px-6 py-3 font-semibold transition-colors relative ${
+              activeTab === "campaigns"
+                ? "text-teal-600 border-b-2 border-teal-600"
+                : "text-slate-600 hover:text-slate-800"
+            }`}
+          >
+            Your Campaigns
+            {campaigns.length > 0 && (
+              <span className="ml-2 px-2 py-0.5 text-xs bg-teal-100 text-teal-700 rounded-full">
+                {campaigns.length}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
 
-        <form onSubmit={submit} className="mt-6 space-y-4">
+      {/* Tab Content */}
+      {activeTab === "create" && (
+        <Card>
+          <h2 className="text-2xl font-semibold">Create New Campaign</h2>
+          <p className="mt-2 text-slate-600">
+            Define your landing URL and how many coins you'll spend per verified visit.
+          </p>
+
+          <form onSubmit={submit} className="mt-6 space-y-4">
           <div>
             <Label htmlFor="title">Title</Label>
             <Input id="title" name="title" value={form.title} onChange={onChange} placeholder="My Product Landing" />
@@ -359,11 +392,16 @@ export default function Promote() {
           </div>
         </form>
       </Card>
+      )}
 
-      <Card>
-        <h3 className="text-lg font-semibold">Your Campaigns</h3>
+      {activeTab === "campaigns" && (
+        <Card>
+          <h2 className="text-2xl font-semibold">Your Campaigns</h2>
+          <p className="mt-2 text-slate-600">
+            Manage and monitor your active and finished campaigns.
+          </p>
         {campaigns.length === 0 ? (
-          <p className="mt-2 text-slate-600">No campaigns yet. Create your first one.</p>
+          <p className="mt-4 text-slate-600">No campaigns yet. Switch to "Create Campaign" tab to create your first one.</p>
         ) : (
           <ul className="mt-4 space-y-3">
             {campaigns.map((c) => {
@@ -429,6 +467,7 @@ export default function Promote() {
           </ul>
         )}
       </Card>
+      )}
 
       {/* Beautiful Toast Notification */}
       {showToast && (
