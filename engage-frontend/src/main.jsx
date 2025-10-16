@@ -13,6 +13,14 @@ import VerifyEmail from "./pages/VerifyEmail";
 import AuthGate from "./components/AuthGate";
 import { AppProvider } from "./lib/appState";
 
+// Admin pages
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminUserDetails from "./pages/admin/AdminUserDetails";
+import AdminLimits from "./pages/admin/AdminLimits";
+import AdminLogs from "./pages/admin/AdminLogs";
+import AdminCampaigns from "./pages/admin/AdminCampaigns";
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -39,6 +47,32 @@ const router = createBrowserRouter([
       {
         path: "promote",
         element: <AuthGate><Promote /></AuthGate>
+      },
+
+      // Admin routes
+      {
+        path: "admin",
+        element: <AuthGate><AdminDashboard /></AuthGate>
+      },
+      {
+        path: "admin/users",
+        element: <AuthGate><AdminUsers /></AuthGate>
+      },
+      {
+        path: "admin/users/:id",
+        element: <AuthGate><AdminUserDetails /></AuthGate>
+      },
+      {
+        path: "admin/limits",
+        element: <AuthGate><AdminLimits /></AuthGate>
+      },
+      {
+        path: "admin/logs",
+        element: <AuthGate><AdminLogs /></AuthGate>
+      },
+      {
+        path: "admin/campaigns",
+        element: <AuthGate><AdminCampaigns /></AuthGate>
       },
 
       { path: "*", element: <div className="text-slate-600">404 • Not found</div> },

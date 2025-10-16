@@ -36,6 +36,11 @@ export default function Header() {
           <NavLink to="/promote" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
             Promote
           </NavLink>
+          {user && user.is_admin && (
+            <NavLink to="/admin" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
+              Admin
+            </NavLink>
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-3">

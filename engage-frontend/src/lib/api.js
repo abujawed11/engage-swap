@@ -51,6 +51,9 @@ async function apiCall(endpoint, options = {}) {
   }
 }
 
+// Export as apiRequest for admin API
+export const apiRequest = apiCall;
+
 // ─── Auth API ───
 export const auth = {
   async signup(username, email, password) {

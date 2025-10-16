@@ -37,6 +37,7 @@ function authRequired(req, res, next) {
     username: decoded.uname,
     email: decoded.email,
     role: decoded.role,
+    is_admin: decoded.role === 'admin', // Add is_admin flag based on role
   };
 
   next();
