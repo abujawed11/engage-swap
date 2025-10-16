@@ -17,6 +17,13 @@ export default function AdminUserDetails() {
   const [adjustReason, setAdjustReason] = useState('');
   const [adjusting, setAdjusting] = useState(false);
 
+  const [showDisableModal, setShowDisableModal] = useState(false);
+  const [disableReason, setDisableReason] = useState('');
+  const [disabling, setDisabling] = useState(false);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   useEffect(() => {
     fetchUserDetails();
   }, [id]);
@@ -59,6 +66,55 @@ export default function AdminUserDetails() {
       setError(err.message);
     } finally {
       setAdjusting(false);
+    }
+  };
+
+  const handleDisableUser = async () => {
+    if (!disableReason) {
+      setError('Reason is required');
+      return;
+    }
+
+    try {
+      setDisabling(true);
+      setError('');
+      await adminAPI.disableUser(id, disableReason);
+      setSuccess('User disabled successfully');
+      setShowDisableModal(false);
+      setDisableReason('');
+      fetchUserDetails();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDisabling(false);
+    }
+  };
+
+  const handleEnableUser = async () => {
+    try {
+      setError('');
+      await adminAPI.enableUser(id);
+      setSuccess('User enabled successfully');
+      fetchUserDetails();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    try {
+      setDeleting(true);
+      setError('');
+      await adminAPI.deleteUser(id);
+      setSuccess('User deleted successfully');
+      setTimeout(() => {
+        navigate('/admin/users');
+      }, 1500);
+    } catch (err) {
+      setError(err.message);
+      setDeleting(false);
     }
   };
 
@@ -115,22 +171,64 @@ export default function AdminUserDetails() {
       {/* User Info */}
       <Card>
         <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold">{data.user.username}</h2>
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-semibold">{data.user.username}</h2>
+              {data.user.is_disabled && (
+                <span className="text-xs bg-red-100 text-red-800 px-3 py-1 rounded font-medium">
+                  DISABLED
+                </span>
+              )}
+            </div>
             <p className="text-slate-600 mt-1">{data.user.email}</p>
             <p className="text-xs text-slate-500 mt-1">{data.user.public_id}</p>
+
+            {data.user.is_disabled && data.user.disabled_reason && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
+                <div className="text-sm font-medium text-red-800">Disabled Reason:</div>
+                <div className="text-sm text-red-700 mt-1">{data.user.disabled_reason}</div>
+                {data.user.disabled_at && (
+                  <div className="text-xs text-red-600 mt-1">
+                    Disabled on: {new Date(data.user.disabled_at).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div className="text-right">
             <div className="text-sm text-slate-600">Balance</div>
             <div className="text-3xl font-bold text-teal-700">
               {formatCoinsValue(data.user.coins)}
             </div>
-            <Button
-              onClick={() => setShowAdjustModal(true)}
-              className="mt-2 text-sm bg-orange-600 hover:bg-orange-700"
-            >
-              Adjust Coins
-            </Button>
+            <div className="flex flex-col gap-2 mt-3">
+              <Button
+                onClick={() => setShowAdjustModal(true)}
+                className="text-sm bg-orange-600 hover:bg-orange-700"
+              >
+                Adjust Coins
+              </Button>
+              {data.user.is_disabled ? (
+                <Button
+                  onClick={handleEnableUser}
+                  className="text-sm bg-green-600 hover:bg-green-700"
+                >
+                  Enable Account
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => setShowDisableModal(true)}
+                  className="text-sm bg-yellow-600 hover:bg-yellow-700"
+                >
+                  Disable Account
+                </Button>
+              )}
+              <Button
+                onClick={() => setShowDeleteModal(true)}
+                className="text-sm bg-red-600 hover:bg-red-700"
+              >
+                Delete User
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -352,6 +450,93 @@ export default function AdminUserDetails() {
                     setShowAdjustModal(false);
                     setAdjustAmount('');
                     setAdjustReason('');
+                    setError('');
+                  }}
+                  className="bg-slate-500 hover:bg-slate-600"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disable User Modal */}
+      {showDisableModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-semibold mb-4">Disable User Account</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              This user will not be able to login, earn coins, or create campaigns until re-enabled.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Reason for Disabling</label>
+                <textarea
+                  value={disableReason}
+                  onChange={(e) => setDisableReason(e.target.value)}
+                  placeholder="Explain why you're disabling this account..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded"
+                  rows="3"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={handleDisableUser}
+                  disabled={disabling}
+                  className="bg-yellow-600 hover:bg-yellow-700"
+                >
+                  {disabling ? 'Disabling...' : 'Disable Account'}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowDisableModal(false);
+                    setDisableReason('');
+                    setError('');
+                  }}
+                  className="bg-slate-500 hover:bg-slate-600"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-semibold mb-4 text-red-700">Delete User Account</h3>
+            <div className="space-y-3">
+              <p className="text-sm text-slate-700">
+                <strong>Warning:</strong> This action is permanent and cannot be undone!
+              </p>
+              <p className="text-sm text-slate-600">
+                The user account, all their campaigns, visits, and related data will be permanently deleted.
+              </p>
+
+              <div className="bg-red-50 border border-red-200 rounded p-3 my-3">
+                <p className="text-sm font-medium text-red-800">
+                  User: <strong>{data.user.username}</strong> ({data.user.email})
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={handleDeleteUser}
+                  disabled={deleting}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {deleting ? 'Deleting...' : 'Permanently Delete'}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowDeleteModal(false);
                     setError('');
                   }}
                   className="bg-slate-500 hover:bg-slate-600"

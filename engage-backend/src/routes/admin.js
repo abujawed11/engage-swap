@@ -131,7 +131,7 @@ router.get('/users/:id', async (req, res, next) => {
 
     // Get user details
     const [users] = await db.query(
-      `SELECT id, public_id, username, email, coins, is_admin, email_verified_at, ip_address, created_at, updated_at
+      `SELECT id, public_id, username, email, coins, is_admin, is_disabled, disabled_at, disabled_reason, email_verified_at, ip_address, created_at, updated_at
        FROM users WHERE id = ?`,
       [userId]
     );
@@ -176,6 +176,124 @@ router.get('/users/:id', async (req, res, next) => {
       visits,
       enforcement_logs: enforcementLogs,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /admin/users/:id/disable
+ * Disable a user account
+ */
+router.post('/users/:id/disable', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const { reason } = req.body;
+
+    if (!reason || typeof reason !== 'string') {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Reason is required' },
+      });
+    }
+
+    // Check if user exists
+    const [users] = await db.query('SELECT id, username, is_admin FROM users WHERE id = ?', [userId]);
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'User not found' },
+      });
+    }
+
+    // Prevent disabling admin accounts
+    if (users[0].is_admin) {
+      return res.status(400).json({
+        error: { code: 'INVALID_ACTION', message: 'Cannot disable admin accounts' },
+      });
+    }
+
+    // Disable user
+    await db.query(
+      'UPDATE users SET is_disabled = 1, disabled_at = NOW(), disabled_reason = ? WHERE id = ?',
+      [reason, userId]
+    );
+
+    console.log(`[Admin] User ${userId} (${users[0].username}) disabled by admin ${req.user.id}. Reason: ${reason}`);
+
+    res.json({ success: true, message: 'User disabled successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /admin/users/:id/enable
+ * Enable a disabled user account
+ */
+router.post('/users/:id/enable', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+
+    // Check if user exists
+    const [users] = await db.query('SELECT id, username FROM users WHERE id = ?', [userId]);
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'User not found' },
+      });
+    }
+
+    // Enable user
+    await db.query(
+      'UPDATE users SET is_disabled = 0, disabled_at = NULL, disabled_reason = NULL WHERE id = ?',
+      [userId]
+    );
+
+    console.log(`[Admin] User ${userId} (${users[0].username}) enabled by admin ${req.user.id}`);
+
+    res.json({ success: true, message: 'User enabled successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /admin/users/:id
+ * Permanently delete a user account
+ */
+router.delete('/users/:id', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const { confirm } = req.body;
+
+    if (confirm !== 'DELETE') {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Confirmation required. Send {"confirm": "DELETE"}' },
+      });
+    }
+
+    // Check if user exists
+    const [users] = await db.query('SELECT id, username, is_admin FROM users WHERE id = ?', [userId]);
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'User not found' },
+      });
+    }
+
+    // Prevent deleting admin accounts
+    if (users[0].is_admin) {
+      return res.status(400).json({
+        error: { code: 'INVALID_ACTION', message: 'Cannot delete admin accounts' },
+      });
+    }
+
+    // Delete user (cascading will handle related records)
+    await db.query('DELETE FROM users WHERE id = ?', [userId]);
+
+    console.log(`[Admin] User ${userId} (${users[0].username}) DELETED by admin ${req.user.id}`);
+
+    res.json({ success: true, message: 'User deleted successfully' });
   } catch (err) {
     next(err);
   }

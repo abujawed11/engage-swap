@@ -284,7 +284,7 @@ router.post('/login', async (req, res, next) => {
 
     // Find user by username or email (case-insensitive)
     const [users] = await db.query(
-      `SELECT id, username, email, password_hash, is_admin, coins, email_verified_at
+      `SELECT id, username, email, password_hash, is_admin, is_disabled, coins, email_verified_at
        FROM users
        WHERE username_lower = ? OR email_lower = ?
        LIMIT 1`,
@@ -302,6 +302,16 @@ router.post('/login', async (req, res, next) => {
     }
 
     const user = users[0];
+
+    // Check if account is disabled
+    if (user.is_disabled) {
+      return res.status(403).json({
+        error: {
+          code: 'ACCOUNT_DISABLED',
+          message: 'Your account has been disabled. Please contact support.',
+        },
+      });
+    }
 
     // Verify password (constant-time comparison via bcrypt)
     const passwordValid = await bcrypt.compare(password, user.password_hash);

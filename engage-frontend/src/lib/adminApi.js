@@ -18,6 +18,23 @@ export const adminAPI = {
       body: JSON.stringify({ amount, reason }),
     }),
 
+  disableUser: (userId, reason) =>
+    apiRequest(`/admin/users/${userId}/disable`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  enableUser: (userId) =>
+    apiRequest(`/admin/users/${userId}/enable`, {
+      method: 'POST',
+    }),
+
+  deleteUser: (userId) =>
+    apiRequest(`/admin/users/${userId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'DELETE' }),
+    }),
+
   // Campaign limits configuration
   getLimits: () => apiRequest('/admin/limits'),
 

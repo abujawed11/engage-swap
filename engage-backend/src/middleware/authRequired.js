@@ -4,7 +4,7 @@ const { verifyToken } = require('../utils/jwt');
  * Middleware to require authentication via JWT Bearer token
  * Attaches decoded user to req.user
  */
-function authRequired(req, res, next) {
+async function authRequired(req, res, next) {
   // Extract token from Authorization header
   const authHeader = req.headers.authorization;
 
@@ -39,6 +39,22 @@ function authRequired(req, res, next) {
     role: decoded.role,
     is_admin: decoded.role === 'admin', // Add is_admin flag based on role
   };
+
+  // Check if user account is disabled (fetch from DB)
+  const db = require('../db');
+  const [users] = await db.query(
+    'SELECT is_disabled FROM users WHERE id = ? LIMIT 1',
+    [req.user.id]
+  );
+
+  if (users.length > 0 && users[0].is_disabled) {
+    return res.status(403).json({
+      error: {
+        code: 'ACCOUNT_DISABLED',
+        message: 'Your account has been disabled. Please contact support.',
+      },
+    });
+  }
 
   next();
 }
