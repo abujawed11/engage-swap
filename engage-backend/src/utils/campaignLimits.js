@@ -270,8 +270,9 @@ async function updateRotationTracking(connection, userId, campaignId) {
 }
 
 /**
- * Get campaigns with availability status
+ * Get campaigns with availability status and scored ranking
  * Shows ALL campaigns but includes status info (available/cooldown/limit_reached)
+ * Orders campaigns using score-based ranking system
  * @param {number} userId
  * @param {number} limit
  * @returns {Promise<Array>} - Campaigns with availability_status field
@@ -282,7 +283,7 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
   const cooldownSeconds = getCooldownSeconds(config);
   const attemptLimits = config.attempt_limits || { high: 2, medium: 3, low: 5 };
 
-  // Get ALL campaigns with user activity data
+  // Get ALL campaigns with user activity data AND serve tracking
   const query = `
     SELECT
       c.id, c.public_id, c.title, c.url, c.coins_per_visit, c.watch_duration,
@@ -290,6 +291,8 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
       u.username as creator_username,
       uca.attempt_count_24h,
       uca.last_claimed_at,
+      crt.last_served_at,
+      crt.serve_count,
       CASE
         WHEN c.coins_per_visit >= ? THEN 'HIGH'
         WHEN c.coins_per_visit >= ? THEN 'MEDIUM'
@@ -305,12 +308,11 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
     FROM campaigns c
     INNER JOIN users u ON c.user_id = u.id
     LEFT JOIN user_campaign_activity uca ON c.id = uca.campaign_id AND uca.user_id = ?
+    LEFT JOIN campaign_rotation_tracking crt ON c.id = crt.campaign_id AND crt.user_id = ?
     WHERE c.user_id != ?
       AND c.is_paused = 0
       AND c.is_finished = 0
       AND c.clicks_served < c.total_clicks
-    ORDER BY c.created_at DESC
-    LIMIT ?
   `;
 
   const [campaigns] = await db.query(query, [
@@ -321,11 +323,10 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
     valueThresholds.high, attemptLimits.high,
     valueThresholds.medium, attemptLimits.medium,
     attemptLimits.low,
-    // For JOIN and WHERE
+    // For JOINs and WHERE
     userId,
     userId,
-    // LIMIT
-    limit
+    userId
   ]);
 
   // Add availability status to each campaign
@@ -385,7 +386,12 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
     };
   });
 
-  return campaignsWithStatus;
+  // Apply score-based ranking using the scoring system
+  const { scoreAndRankCampaigns } = require('./campaignScoring');
+  const rankedCampaigns = await scoreAndRankCampaigns(campaignsWithStatus, userId);
+
+  // Return top N campaigns
+  return rankedCampaigns.slice(0, limit);
 }
 
 module.exports = {

@@ -57,6 +57,12 @@ router.get('/queue', async (req, res, next) => {
       }));
     }
 
+    // Update serve tracking for all campaigns shown to user
+    const { updateServeTracking } = require('../utils/campaignScoring');
+    for (const campaign of campaigns) {
+      await updateServeTracking(userId, campaign.id);
+    }
+
     // Remove internal tracking fields before sending to client
     const cleanedCampaigns = campaigns.map(c => ({
       id: c.id,
