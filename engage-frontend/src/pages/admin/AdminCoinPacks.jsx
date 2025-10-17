@@ -1,5 +1,6 @@
 // src/pages/admin/AdminCoinPacks.jsx
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { apiRequest } from '../../lib/api';
 import Card from '../../components/ui/Card';
 
@@ -90,12 +91,20 @@ export default function AdminCoinPacks() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <Card className="p-6 bg-gradient-to-r from-teal-50 to-teal-100 border-2 border-teal-300">
-        <h1 className="text-2xl font-bold text-slate-900">Manage Coin Packs</h1>
-        <p className="text-slate-700 mt-1">
-          Edit pricing, coin amounts, and bonuses for the marketplace
-        </p>
-      </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Manage Coin Packs</h1>
+          <p className="text-slate-700 mt-1">
+            Edit pricing, coin amounts, and bonuses for the marketplace
+          </p>
+        </div>
+        <Link
+          to="/admin"
+          className="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700 transition"
+        >
+          ← Back to Dashboard
+        </Link>
+      </div>
 
       {error && (
         <Card className="p-4 bg-red-50 border border-red-200">
