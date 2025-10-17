@@ -235,38 +235,48 @@ export default function TransactionHistory() {
       {/* Filters */}
       <div className="mb-4 p-4 bg-gray-50 rounded-lg">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input
-            type="text"
-            placeholder="Search (source, reference ID...)"
-            value={filters.search}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
-            className="px-3 py-2 border rounded-md"
-          />
-          <input
-            type="date"
-            placeholder="Start Date"
-            value={filters.startDate}
-            onChange={(e) => handleFilterChange('startDate', e.target.value)}
-            className="px-3 py-2 border rounded-md"
-          />
-          <input
-            type="date"
-            placeholder="End Date"
-            value={filters.endDate}
-            onChange={(e) => handleFilterChange('endDate', e.target.value)}
-            className="px-3 py-2 border rounded-md"
-          />
-          <select
-            value={filters.status}
-            onChange={(e) => handleFilterChange('status', e.target.value)}
-            className="px-3 py-2 border rounded-md"
-          >
-            <option value="">All Statuses</option>
-            <option value="SUCCESS">Success</option>
-            <option value="PENDING">Pending</option>
-            <option value="FAILED">Failed</option>
-            <option value="REVERSED">Reversed</option>
-          </select>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1 ml-1">Search</label>
+            <input
+              type="text"
+              placeholder="Source, reference ID..."
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1 ml-1">From Date</label>
+            <input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => handleFilterChange('startDate', e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1 ml-1">To Date</label>
+            <input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => handleFilterChange('endDate', e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1 ml-1">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+            >
+              <option value="">All Statuses</option>
+              <option value="SUCCESS">Success</option>
+              <option value="PENDING">Pending</option>
+              <option value="FAILED">Failed</option>
+              <option value="REVERSED">Reversed</option>
+            </select>
+          </div>
         </div>
         <div className="flex space-x-2 mt-3">
           <button
