@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import Earn from "./pages/Earn";
 import Gateway from "./pages/Gateway";
 import Promote from "./pages/Promote";
+import Wallet from "./pages/Wallet";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
@@ -47,6 +48,10 @@ const router = createBrowserRouter([
       {
         path: "promote",
         element: <AuthGate><Promote /></AuthGate>
+      },
+      {
+        path: "wallet",
+        element: <AuthGate><Wallet /></AuthGate>
       },
 
       // Admin routes

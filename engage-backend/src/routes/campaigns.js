@@ -12,6 +12,7 @@ const {
 } = require('../utils/validation');
 const { generatePublicId } = require('../utils/publicId');
 const { validateCampaignQuestions } = require('../utils/questionValidation');
+const wallet = require('../utils/wallet');
 
 const router = express.Router();
 
@@ -111,37 +112,53 @@ router.post('/', async (req, res, next) => {
     await connection.beginTransaction();
 
     try {
-      // Check if user has enough coins (with row lock)
-      const [users] = await connection.query(
-        'SELECT coins FROM users WHERE id = ? FOR UPDATE',
+      // Ensure wallet exists first
+      const [existingWallet] = await connection.query(
+        'SELECT id FROM wallets WHERE user_id = ? LIMIT 1',
         [userId]
       );
 
-      if (users.length === 0) {
+      if (existingWallet.length === 0) {
+        await connection.query(
+          `INSERT INTO wallets (user_id, available, locked, lifetime_earned, lifetime_spent)
+           VALUES (?, 0.000, 0.000, 0.000, 0.000)`,
+          [userId]
+        );
+        await connection.query(
+          `INSERT INTO wallet_audit_logs (actor_type, user_id, action, reason)
+           VALUES (?, ?, ?, ?)`,
+          [wallet.ACTOR_TYPE.SYSTEM, userId, wallet.AUDIT_ACTION.CREATE_WALLET, 'Auto-created wallet on campaign creation']
+        );
+      }
+
+      // Check if user has enough coins in wallet (with row lock)
+      const [wallets] = await connection.query(
+        'SELECT available FROM wallets WHERE user_id = ? FOR UPDATE',
+        [userId]
+      );
+
+      if (wallets.length === 0) {
         await connection.rollback();
         connection.release();
         return res.status(404).json({
-          error: { code: 'USER_NOT_FOUND', message: 'User not found' },
+          error: { code: 'USER_NOT_FOUND', message: 'User wallet not found' },
         });
       }
 
-      const userCoins = users[0].coins;
-      if (userCoins < totalCoinsNeeded) {
+      const availableCoins = Number(wallets[0].available);
+      if (availableCoins < totalCoinsNeeded) {
         await connection.rollback();
         connection.release();
         return res.status(400).json({
           error: {
             code: 'INSUFFICIENT_COINS',
-            message: `You need ${totalCoinsNeeded.toFixed(1)} coins to create this campaign. You have ${userCoins} coins.`,
+            message: `You need ${totalCoinsNeeded.toFixed(3)} coins to create this campaign. You have ${availableCoins.toFixed(3)} coins available.`,
           },
         });
       }
 
-      // Deduct coins from user upfront
-      await connection.query(
-        'UPDATE users SET coins = coins - ? WHERE id = ?',
-        [totalCoinsNeeded, userId]
-      );
+      // Deduct coins from user upfront - NO LONGER UPDATE users.coins directly
+      // We'll use the wallet system instead
 
       // Insert campaign
       // Store the BASE coins_per_visit (not the total cost)
@@ -157,6 +174,66 @@ router.post('/', async (req, res, next) => {
       // Generate and set public_id
       const publicId = generatePublicId('CMP', campaignId);
       await connection.query('UPDATE campaigns SET public_id = ? WHERE id = ?', [publicId, campaignId]);
+
+      // Create wallet transaction for campaign creation (SPENT)
+      // Generate reference ID for campaign creation
+      const referenceId = wallet.generateReferenceId('campaign_create', userId, `${campaignId}_${Date.now()}`);
+
+      // Check for existing transaction (idempotency)
+      const [existingTxn] = await connection.query(
+        'SELECT id FROM wallet_transactions WHERE reference_id = ? LIMIT 1',
+        [referenceId]
+      );
+
+      if (existingTxn.length === 0) {
+        // Create SPENT transaction
+        const [txnResult] = await connection.query(
+          `INSERT INTO wallet_transactions
+           (user_id, type, status, amount, sign, campaign_id, source, reference_id, metadata)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            userId,
+            wallet.TXN_TYPE.SPENT,
+            wallet.TXN_STATUS.SUCCESS,
+            wallet.formatAmount(totalCoinsNeeded),
+            wallet.TXN_SIGN.MINUS,
+            campaignId,
+            'campaign_creation',
+            referenceId,
+            JSON.stringify({
+              campaign_public_id: publicId,
+              campaign_title: title,
+              base_coins_per_visit: baseCoinsPerVisit,
+              watch_duration: watchDuration,
+              total_clicks: totalClicks,
+              total_cost: wallet.formatAmount(totalCoinsNeeded),
+            })
+          ]
+        );
+
+        const txnId = txnResult.insertId;
+
+        // Update wallet balance
+        await connection.query(
+          'UPDATE wallets SET available = available - ?, lifetime_spent = lifetime_spent + ? WHERE user_id = ?',
+          [wallet.formatAmount(totalCoinsNeeded), wallet.formatAmount(totalCoinsNeeded), userId]
+        );
+
+        // Create audit log
+        await connection.query(
+          `INSERT INTO wallet_audit_logs
+           (actor_type, user_id, action, txn_id, amount, reason)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            wallet.ACTOR_TYPE.SYSTEM,
+            userId,
+            wallet.AUDIT_ACTION.CREATE_TXN,
+            txnId,
+            wallet.formatAmount(totalCoinsNeeded),
+            `Campaign creation: ${title}`,
+          ]
+        );
+      }
 
       // Insert campaign questions
       for (let i = 0; i < questions.length; i++) {
@@ -399,12 +476,86 @@ router.delete('/:id', async (req, res, next) => {
         });
       }
 
-      // Refund unused coins to user
+      // Refund unused coins to user via wallet transaction
       if (refundAmount > 0) {
-        await connection.query(
-          'UPDATE users SET coins = coins + ? WHERE id = ?',
-          [refundAmount, userId]
+        // Ensure wallet exists
+        const [existingWallet] = await connection.query(
+          'SELECT id FROM wallets WHERE user_id = ? LIMIT 1',
+          [userId]
         );
+
+        if (existingWallet.length === 0) {
+          await connection.query(
+            `INSERT INTO wallets (user_id, available, locked, lifetime_earned, lifetime_spent)
+             VALUES (?, 0.000, 0.000, 0.000, 0.000)`,
+            [userId]
+          );
+          await connection.query(
+            `INSERT INTO wallet_audit_logs (actor_type, user_id, action, reason)
+             VALUES (?, ?, ?, ?)`,
+            [wallet.ACTOR_TYPE.SYSTEM, userId, wallet.AUDIT_ACTION.CREATE_WALLET, 'Auto-created wallet on campaign deletion']
+          );
+        }
+
+        // Generate reference ID for refund
+        const referenceId = wallet.generateReferenceId('campaign_refund', userId, `${campaignId}_${Date.now()}`);
+
+        // Check for existing transaction (idempotency)
+        const [existingTxn] = await connection.query(
+          'SELECT id FROM wallet_transactions WHERE reference_id = ? LIMIT 1',
+          [referenceId]
+        );
+
+        if (existingTxn.length === 0) {
+          // Create REFUND transaction
+          const [txnResult] = await connection.query(
+            `INSERT INTO wallet_transactions
+             (user_id, type, status, amount, sign, campaign_id, source, reference_id, metadata)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              userId,
+              wallet.TXN_TYPE.REFUND,
+              wallet.TXN_STATUS.SUCCESS,
+              wallet.formatAmount(refundAmount),
+              wallet.TXN_SIGN.PLUS,
+              campaignId,
+              'campaign_deletion',
+              referenceId,
+              JSON.stringify({
+                campaign_id: campaignId,
+                total_clicks: C,
+                clicks_served: k,
+                remaining_clicks: remainingClicks,
+                base_coins_per_visit: V,
+                watch_duration: duration,
+                refund_amount: wallet.formatAmount(refundAmount),
+              })
+            ]
+          );
+
+          const txnId = txnResult.insertId;
+
+          // Update wallet balance
+          await connection.query(
+            'UPDATE wallets SET available = available + ?, lifetime_earned = lifetime_earned + ? WHERE user_id = ?',
+            [wallet.formatAmount(refundAmount), wallet.formatAmount(refundAmount), userId]
+          );
+
+          // Create audit log
+          await connection.query(
+            `INSERT INTO wallet_audit_logs
+             (actor_type, user_id, action, txn_id, amount, reason)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              wallet.ACTOR_TYPE.SYSTEM,
+              userId,
+              wallet.AUDIT_ACTION.CREATE_TXN,
+              txnId,
+              wallet.formatAmount(refundAmount),
+              `Campaign deletion refund: ${remainingClicks} unused clicks`,
+            ]
+          );
+        }
       }
 
       // Delete campaign (will cascade delete visits due to FK)

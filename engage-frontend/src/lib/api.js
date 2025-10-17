@@ -2,6 +2,9 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 const TOKEN_KEY = "engage_swap_token";
 
+// Export BASE_URL for direct API calls
+export const API_BASE = BASE_URL;
+
 // ─── Token management ───
 export function setToken(token) {
   localStorage.setItem(TOKEN_KEY, token);

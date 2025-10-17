@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const bcrypt = require('bcryptjs');
 const { requireAdmin } = require('../middleware/adminAuth');
+const wallet = require('../utils/wallet');
 
 const router = express.Router();
 
@@ -525,6 +526,249 @@ router.get('/campaigns', async (req, res, next) => {
         total_pages: Math.ceil(total / limit),
       },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /admin/wallet/audit-logs
+ * Get wallet audit logs with filters
+ */
+router.get('/wallet/audit-logs', async (req, res, next) => {
+  try {
+    const {
+      userId,
+      actorType,
+      actorId,
+      action,
+      startDate,
+      endDate,
+      limit,
+      offset,
+    } = req.query;
+
+    const result = await wallet.getAuditLogs({
+      userId: userId ? parseInt(userId) : null,
+      actorType,
+      actorId: actorId ? parseInt(actorId) : null,
+      action,
+      startDate,
+      endDate,
+      limit,
+      offset,
+    });
+
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /admin/wallet/:userId/adjust
+ * Manually adjust a user's wallet balance (credit or debit)
+ */
+router.post('/wallet/:userId/adjust', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const { amount, reason, type } = req.body;
+
+    // Validation
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_USER_ID', message: 'Invalid user ID' },
+      });
+    }
+
+    if (!amount || typeof amount !== 'number' || amount <= 0) {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Valid positive amount is required' },
+      });
+    }
+
+    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Reason is required' },
+      });
+    }
+
+    if (!type || !['credit', 'debit'].includes(type)) {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Type must be "credit" or "debit"' },
+      });
+    }
+
+    // Check if user exists
+    const [users] = await db.query('SELECT id, username FROM users WHERE id = ?', [userId]);
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'User not found' },
+      });
+    }
+
+    // Create transaction
+    const txnType = type === 'credit' ? wallet.TXN_TYPE.ADMIN_CREDIT : wallet.TXN_TYPE.ADMIN_DEBIT;
+    const sign = type === 'credit' ? wallet.TXN_SIGN.PLUS : wallet.TXN_SIGN.MINUS;
+
+    const referenceId = wallet.generateReferenceId(
+      'admin_adjust',
+      userId,
+      `${req.user.id}_${Date.now()}`
+    );
+
+    const transaction = await wallet.createTransaction({
+      userId,
+      type: txnType,
+      sign,
+      amount,
+      source: 'admin_adjustment',
+      referenceId,
+      metadata: {
+        admin_id: req.user.id,
+        admin_username: req.user.username,
+        reason: reason.trim(),
+        adjustment_type: type,
+      },
+      actorType: wallet.ACTOR_TYPE.ADMIN,
+      actorId: req.user.id,
+    });
+
+    // Get updated balance
+    const balance = await wallet.getWalletBalance(userId);
+
+    console.log(
+      `[Admin] User ${userId} (${users[0].username}) wallet ${type} of ${amount} by admin ${req.user.id}. Reason: ${reason}`
+    );
+
+    res.status(200).json({
+      success: true,
+      transaction,
+      balance,
+    });
+  } catch (err) {
+    if (err.message === 'Insufficient funds') {
+      return res.status(400).json({
+        error: {
+          code: 'INSUFFICIENT_FUNDS',
+          message: 'User does not have sufficient funds for this debit',
+        },
+      });
+    }
+    next(err);
+  }
+});
+
+/**
+ * POST /admin/wallet/:userId/recalculate
+ * Recalculate wallet aggregates from transaction history
+ */
+router.post('/wallet/:userId/recalculate', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.userId);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_USER_ID', message: 'Invalid user ID' },
+      });
+    }
+
+    // Check if user exists
+    const [users] = await db.query('SELECT id, username FROM users WHERE id = ?', [userId]);
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'User not found' },
+      });
+    }
+
+    const recalculatedBalance = await wallet.recalculateWalletAggregates(
+      userId,
+      wallet.ACTOR_TYPE.ADMIN,
+      req.user.id
+    );
+
+    console.log(
+      `[Admin] User ${userId} (${users[0].username}) wallet aggregates recalculated by admin ${req.user.id}`
+    );
+
+    res.status(200).json({
+      success: true,
+      balance: recalculatedBalance,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /admin/wallet/:userId/balance
+ * Get a user's wallet balance (admin view)
+ */
+router.get('/wallet/:userId/balance', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.userId);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_USER_ID', message: 'Invalid user ID' },
+      });
+    }
+
+    const balance = await wallet.getWalletBalance(userId);
+
+    res.status(200).json({
+      balance,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /admin/wallet/:userId/transactions
+ * Get a user's transaction history (admin view)
+ */
+router.get('/wallet/:userId/transactions', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.userId);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_USER_ID', message: 'Invalid user ID' },
+      });
+    }
+
+    const {
+      limit,
+      offset,
+      types,
+      statuses,
+      campaignId,
+      startDate,
+      endDate,
+      search,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const typesArray = types ? types.split(',').map((t) => t.trim().toUpperCase()) : [];
+    const statusesArray = statuses ? statuses.split(',').map((s) => s.trim().toUpperCase()) : [];
+
+    const result = await wallet.getTransactionHistory({
+      userId,
+      limit,
+      offset,
+      types: typesArray,
+      statuses: statusesArray,
+      campaignId: campaignId ? parseInt(campaignId) : null,
+      startDate,
+      endDate,
+      search,
+      sortBy,
+      sortOrder,
+    });
+
+    res.status(200).json(result);
   } catch (err) {
     next(err);
   }

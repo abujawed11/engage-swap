@@ -14,6 +14,7 @@ const earnRouter = require('./src/routes/earn');
 const quizRouter = require('./src/routes/quiz');
 const analyticsRouter = require('./src/routes/analytics');
 const adminRouter = require('./src/routes/admin');
+const walletRouter = require('./src/routes/wallet');
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.use('/campaigns', authRequired, campaignsWriteLimiter, campaignsRouter);
 app.use('/earn', authRequired, earnRouter);
 app.use('/quiz', authRequired, quizRouter);
 app.use('/analytics', authRequired, analyticsRouter);
+app.use('/wallet', authRequired, walletRouter);
 app.use('/admin', authRequired, adminRouter);
 
 // ─── Error Handlers ───

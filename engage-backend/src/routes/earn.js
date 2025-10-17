@@ -10,6 +10,7 @@ const {
   updateRotationTracking,
   getEligibleCampaignsWithRotation,
 } = require('../utils/campaignLimits');
+const { issueQuizReward } = require('../utils/quizRewardWallet');
 
 const router = express.Router();
 
@@ -315,7 +316,7 @@ router.post('/claim', async (req, res, next) => {
       // CHECK QUIZ COMPLETION REQUIREMENT
       // User must complete and pass the quiz to earn coins
       const [quizAttempts] = await connection.query(
-        'SELECT passed, reward_amount FROM quiz_attempts WHERE visit_token = ?',
+        'SELECT passed, reward_amount, correct_count, total_count, multiplier FROM quiz_attempts WHERE visit_token = ?',
         [token]
       );
 
@@ -426,12 +427,28 @@ router.post('/claim', async (req, res, next) => {
       // Use the reward_amount from quiz_attempts (already calculated with partial rewards)
       const coinsAwarded = roundCoins(quizResult.reward_amount);
 
-      // Credit coins to visitor
-      // Note: Campaign owner already paid upfront during campaign creation,
-      // so we don't need to deduct from their balance here
-      await connection.query(
-        'UPDATE users SET coins = coins + ? WHERE id = ?',
-        [coinsAwarded, userId]
+      // Calculate full reward for metadata (to show what the base reward was)
+      const { calculateActualCoinsPerVisit } = require('../utils/validation');
+      const fullReward = roundCoins(calculateActualCoinsPerVisit(
+        campaign.coins_per_visit,
+        campaign.watch_duration,
+        campaign.total_clicks
+      ));
+
+      // Issue reward through wallet system
+      const quizRewardResult = await issueQuizReward(
+        connection,
+        userId,
+        campaignId,
+        token,
+        coinsAwarded,
+        {
+          correct_count: quizResult.correct_count || 0,
+          total_count: 5,
+          passed: quizResult.passed,
+          multiplier: quizResult.multiplier,
+          full_reward: fullReward,
+        }
       );
 
       // Debug: Log current campaign state before update
@@ -477,12 +494,6 @@ router.post('/claim', async (req, res, next) => {
       const visitPublicId = generatePublicId('VIS', visitId);
       await connection.query('UPDATE visits SET public_id = ? WHERE id = ?', [visitPublicId, visitId]);
 
-      // Get updated user coins
-      const [users] = await connection.query(
-        'SELECT coins FROM users WHERE id = ?',
-        [userId]
-      );
-
       // Record successful claim (increment counter and timestamp) - if tables exist
       try {
         await recordSuccessfulClaim(connection, userId, campaignId, Number(campaign.coins_per_visit));
@@ -497,7 +508,7 @@ router.post('/claim', async (req, res, next) => {
         success: true,
         is_consolation: false,
         coins_earned: coinsAwarded,
-        new_balance: users[0].coins,
+        new_balance: quizRewardResult.newBalance,
         watch_duration_required: requiredDuration,
         active_time_recorded: activeTime,
       });
