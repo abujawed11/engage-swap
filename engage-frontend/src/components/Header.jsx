@@ -36,6 +36,9 @@ export default function Header() {
           <NavLink to="/promote" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
             Promote
           </NavLink>
+          <NavLink to="/market" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
+            Market
+          </NavLink>
           <NavLink to="/wallet" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
             Wallet
           </NavLink>

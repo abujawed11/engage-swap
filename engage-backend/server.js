@@ -15,6 +15,7 @@ const quizRouter = require('./src/routes/quiz');
 const analyticsRouter = require('./src/routes/analytics');
 const adminRouter = require('./src/routes/admin');
 const walletRouter = require('./src/routes/wallet');
+const marketRouter = require('./src/routes/market');
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use('/quiz', authRequired, quizRouter);
 app.use('/analytics', authRequired, analyticsRouter);
 app.use('/wallet', authRequired, walletRouter);
 app.use('/admin', authRequired, adminRouter);
+app.use('/market', marketRouter); // Public catalog browsing, auth required for purchase
 
 // ─── Error Handlers ───
 app.use(notFoundHandler);

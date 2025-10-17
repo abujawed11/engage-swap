@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import Earn from "./pages/Earn";
 import Gateway from "./pages/Gateway";
 import Promote from "./pages/Promote";
+import Market from "./pages/Market";
 import Wallet from "./pages/Wallet";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -48,6 +49,10 @@ const router = createBrowserRouter([
       {
         path: "promote",
         element: <AuthGate><Promote /></AuthGate>
+      },
+      {
+        path: "market",
+        element: <Market />
       },
       {
         path: "wallet",
