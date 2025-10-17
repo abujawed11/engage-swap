@@ -12,6 +12,8 @@ import Wallet from "./pages/Wallet";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import AuthGate from "./components/AuthGate";
 import { AppProvider } from "./lib/appState";
 
@@ -33,6 +35,8 @@ const router = createBrowserRouter([
       { path: "login", element: <Login /> },
       { path: "signup", element: <Signup /> },
       { path: "verify-email", element: <VerifyEmail /> },
+      { path: "forgot-password", element: <ForgotPassword /> },
+      { path: "reset-password", element: <ResetPassword /> },
 
       // Protected routes
       {

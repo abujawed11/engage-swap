@@ -18,18 +18,19 @@ function generateOTP() {
 /**
  * Create and store OTP for user
  * @param {number} userId - User ID
+ * @param {string} purpose - Purpose: 'email_verification' or 'password_reset' (default: 'email_verification')
  * @returns {Object} { code, expiresAt } - plaintext code and expiry time
  */
-async function createOTP(userId) {
+async function createOTP(userId, purpose = 'email_verification') {
   const code = generateOTP();
   const codeHash = await bcrypt.hash(code, BCRYPT_ROUNDS);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-  // Insert new OTP
+  // Insert new OTP with purpose
   await db.query(
-    `INSERT INTO email_otps (user_id, code_hash, expires_at)
-     VALUES (?, ?, ?)`,
-    [userId, codeHash, expiresAt]
+    `INSERT INTO email_otps (user_id, code_hash, expires_at, purpose)
+     VALUES (?, ?, ?, ?)`,
+    [userId, codeHash, expiresAt, purpose]
   );
 
   return { code, expiresAt };
@@ -38,19 +39,26 @@ async function createOTP(userId) {
 /**
  * Check if user has an active OTP (unexpired, unconsumed)
  * @param {number} userId - User ID
+ * @param {string} purpose - Purpose filter (optional)
  * @returns {Object|null} Active OTP or null
  */
-async function getActiveOTP(userId) {
-  const [otps] = await db.query(
-    `SELECT id, code_hash, expires_at, consumed_at, attempts, created_at
+async function getActiveOTP(userId, purpose = null) {
+  let query = `SELECT id, code_hash, expires_at, consumed_at, attempts, created_at, purpose
      FROM email_otps
      WHERE user_id = ?
        AND expires_at > NOW()
-       AND consumed_at IS NULL
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [userId]
-  );
+       AND consumed_at IS NULL`;
+
+  const params = [userId];
+
+  if (purpose) {
+    query += ` AND purpose = ?`;
+    params.push(purpose);
+  }
+
+  query += ` ORDER BY created_at DESC LIMIT 1`;
+
+  const [otps] = await db.query(query, params);
 
   return otps.length > 0 ? otps[0] : null;
 }
@@ -76,10 +84,12 @@ async function canResendOTP(userId) {
  * Verify OTP code for user
  * @param {number} userId - User ID
  * @param {string} code - 6-digit code to verify
+ * @param {string} purpose - Purpose filter (optional)
+ * @param {boolean} consume - Whether to mark OTP as consumed (default: true)
  * @returns {Object} { success: boolean, error?: string }
  */
-async function verifyOTP(userId, code) {
-  const activeOTP = await getActiveOTP(userId);
+async function verifyOTP(userId, code, purpose = null, consume = true) {
+  const activeOTP = await getActiveOTP(userId, purpose);
 
   if (!activeOTP) {
     return { success: false, error: 'No active verification code found' };
@@ -103,11 +113,13 @@ async function verifyOTP(userId, code) {
     return { success: false, error: 'Invalid verification code' };
   }
 
-  // Mark as consumed
-  await db.query(
-    'UPDATE email_otps SET consumed_at = NOW() WHERE id = ?',
-    [activeOTP.id]
-  );
+  // Mark as consumed only if consume flag is true
+  if (consume) {
+    await db.query(
+      'UPDATE email_otps SET consumed_at = NOW() WHERE id = ?',
+      [activeOTP.id]
+    );
+  }
 
   return { success: true };
 }

@@ -69,6 +69,45 @@ async function sendVerificationEmail(to, code) {
   }
 }
 
+/**
+ * Send password reset code email
+ * @param {string} to - Recipient email
+ * @param {string} code - 6-digit OTP code
+ */
+async function sendPasswordResetEmail(to, code) {
+  const subject = 'Reset your EngageSwap password';
+  const text = `Your password reset code is: ${code}\n\nThis code will expire in 10 minutes.\n\nIf you didn't request a password reset, please ignore this email and your password will remain unchanged.`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Password Reset Request</h2>
+      <p>You requested to reset your EngageSwap password. Your verification code is:</p>
+      <div style="background: #f4f4f4; padding: 15px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
+        ${code}
+      </div>
+      <p>This code will expire in <strong>10 minutes</strong>.</p>
+      <p><strong>If you didn't request a password reset</strong>, please ignore this email and your password will remain unchanged.</p>
+      <p style="margin-top: 30px; color: #666; font-size: 12px;">
+        For security reasons, never share this code with anyone.
+      </p>
+    </div>
+  `;
+
+  try {
+    await transport.sendMail({
+      from: config.SMTP_FROM,
+      to,
+      subject,
+      text,
+      html,
+    });
+    return true;
+  } catch (err) {
+    console.error('[Mailer] Failed to send password reset email:', err.message);
+    return false;
+  }
+}
+
 module.exports = {
   sendVerificationEmail,
+  sendPasswordResetEmail,
 };

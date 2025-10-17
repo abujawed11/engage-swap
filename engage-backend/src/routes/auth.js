@@ -260,6 +260,221 @@ router.post('/resend-otp', async (req, res, next) => {
 });
 
 /**
+ * POST /auth/forgot-password
+ * Request password reset OTP
+ */
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const identifier = sanitizeInput(req.body.identifier, 191);
+
+    if (!identifier) {
+      return res.status(422).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Email or username is required',
+        },
+      });
+    }
+
+    // Find user by username or email
+    const identifierLower = identifier.toLowerCase();
+    const [users] = await db.query(
+      `SELECT id, email, email_verified_at
+       FROM users
+       WHERE username_lower = ? OR email_lower = ?
+       LIMIT 1`,
+      [identifierLower, identifierLower]
+    );
+
+    // Show error if user doesn't exist
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'This user is not registered',
+        },
+      });
+    }
+
+    const user = users[0];
+
+    // Only allow password reset for verified accounts
+    if (!user.email_verified_at) {
+      return res.status(403).json({
+        error: {
+          code: 'EMAIL_NOT_VERIFIED',
+          message: 'Please verify your email first',
+        },
+      });
+    }
+
+    // Check cooldown
+    const canSend = await canResendOTP(user.id);
+    if (!canSend) {
+      return res.status(429).json({
+        error: {
+          code: 'TOO_MANY_REQUESTS',
+          message: 'Please wait 60 seconds before requesting another code',
+        },
+      });
+    }
+
+    // Generate OTP for password reset
+    const { code } = await createOTP(user.id, 'password_reset');
+
+    // Send password reset email
+    const { sendPasswordResetEmail } = require('../utils/mailer');
+    await sendPasswordResetEmail(user.email, code);
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /auth/verify-reset-code
+ * Verify OTP code for password reset (step 1)
+ */
+router.post('/verify-reset-code', async (req, res, next) => {
+  try {
+    const identifier = sanitizeInput(req.body.identifier, 191);
+    const code = sanitizeInput(req.body.code, 6);
+
+    if (!identifier || !code) {
+      return res.status(422).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Email/username and code are required',
+        },
+      });
+    }
+
+    // Find user by username or email
+    const identifierLower = identifier.toLowerCase();
+    const [users] = await db.query(
+      `SELECT id, username, email
+       FROM users
+       WHERE username_lower = ? OR email_lower = ?
+       LIMIT 1`,
+      [identifierLower, identifierLower]
+    );
+
+    if (users.length === 0) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_CODE',
+          message: 'Invalid verification code',
+        },
+      });
+    }
+
+    const user = users[0];
+
+    // Verify OTP without consuming it (we'll consume it when password is set)
+    const result = await verifyOTP(user.id, code, 'password_reset', false);
+
+    if (!result.success) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_CODE',
+          message: result.error || 'Invalid or expired verification code',
+        },
+      });
+    }
+
+    // OTP is valid - return success (don't consume it yet, we'll consume it when password is set)
+    res.status(200).json({
+      ok: true,
+      message: 'Code verified successfully'
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /auth/reset-password
+ * Set new password after OTP verification (step 2)
+ */
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const identifier = sanitizeInput(req.body.identifier, 191);
+    const code = sanitizeInput(req.body.code, 6);
+    const newPassword = req.body.newPassword;
+
+    if (!identifier || !code || !newPassword) {
+      return res.status(422).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'All fields are required',
+        },
+      });
+    }
+
+    // Validate new password
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: passwordError },
+      });
+    }
+
+    // Find user by username or email
+    const identifierLower = identifier.toLowerCase();
+    const [users] = await db.query(
+      `SELECT id, username, email, is_admin, email_verified_at
+       FROM users
+       WHERE username_lower = ? OR email_lower = ?
+       LIMIT 1`,
+      [identifierLower, identifierLower]
+    );
+
+    if (users.length === 0) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_CODE',
+          message: 'Invalid verification code',
+        },
+      });
+    }
+
+    const user = users[0];
+
+    // Verify OTP and consume it this time
+    const result = await verifyOTP(user.id, code, 'password_reset', true);
+
+    if (!result.success) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_CODE',
+          message: result.error || 'Invalid or expired verification code',
+        },
+      });
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+
+    // Update password
+    await db.query(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [passwordHash, user.id]
+    );
+
+    console.log(`[Auth] Password reset successful for user ${user.id} (${user.username})`);
+
+    // Return success without logging in - user will be redirected to login page
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * POST /auth/login
  * Authenticate user with username/email + password
  */
