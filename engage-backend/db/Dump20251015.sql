@@ -44,7 +44,7 @@ CREATE TABLE `campaign_enforcement_logs` (
   KEY `idx_user_campaign_date` (`user_id`,`campaign_id`,`created_at`),
   CONSTRAINT `campaign_enforcement_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `campaign_enforcement_logs_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=53 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=55 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -89,7 +89,7 @@ CREATE TABLE `campaign_questions` (
   CONSTRAINT `chk_input_type` CHECK ((`input_type` in (_cp850'dropdown',_cp850'mcq',_cp850'free_text'))),
   CONSTRAINT `chk_question_id` CHECK (((`question_id` >= 1) and (`question_id` <= 20))),
   CONSTRAINT `chk_question_order` CHECK (((`question_order` >= 1) and (`question_order` <= 5)))
-) ENGINE=InnoDB AUTO_INCREMENT=271 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=276 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -115,7 +115,7 @@ CREATE TABLE `campaign_rotation_tracking` (
   KEY `idx_user_last_served` (`user_id`,`last_served_at`),
   CONSTRAINT `campaign_rotation_tracking_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `campaign_rotation_tracking_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=589 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=767 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -148,7 +148,43 @@ CREATE TABLE `campaigns` (
   CONSTRAINT `chk_coins_per_visit` CHECK ((`coins_per_visit` >= 0.001)),
   CONSTRAINT `chk_total_clicks` CHECK ((`total_clicks` >= 1)),
   CONSTRAINT `chk_watch_duration` CHECK (((`watch_duration` >= 30) and (`watch_duration` <= 120) and (((`watch_duration` - 30) % 15) = 0)))
-) ENGINE=InnoDB AUTO_INCREMENT=63 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `coin_packs`
+--
+
+DROP TABLE IF EXISTS `coin_packs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `coin_packs` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `tier_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `base_coins` decimal(20,3) NOT NULL,
+  `bonus_percent` decimal(5,2) NOT NULL DEFAULT '0.00',
+  `price_inr` decimal(12,2) NOT NULL,
+  `price_usd` decimal(12,2) NOT NULL,
+  `is_featured` tinyint(1) NOT NULL DEFAULT '0',
+  `is_popular` tinyint(1) NOT NULL DEFAULT '0',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `display_order` int NOT NULL DEFAULT '0',
+  `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `badge_text` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_tier_name` (`tier_name`),
+  KEY `idx_is_active` (`is_active`),
+  KEY `idx_display_order` (`display_order`),
+  KEY `idx_is_featured` (`is_featured`),
+  KEY `idx_active_order` (`is_active`,`display_order`),
+  CONSTRAINT `chk_pack_base_coins` CHECK ((`base_coins` > 0)),
+  CONSTRAINT `chk_pack_bonus_percent` CHECK (((`bonus_percent` >= 0) and (`bonus_percent` <= 100))),
+  CONSTRAINT `chk_pack_display_order` CHECK ((`display_order` >= 0)),
+  CONSTRAINT `chk_pack_price_inr` CHECK ((`price_inr` > 0)),
+  CONSTRAINT `chk_pack_price_usd` CHECK ((`price_usd` > 0))
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -189,13 +225,37 @@ CREATE TABLE `email_otps` (
   `code_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `expires_at` datetime NOT NULL,
   `consumed_at` datetime DEFAULT NULL,
+  `purpose` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'email_verification',
   `attempts` tinyint NOT NULL DEFAULT '0',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_user_id` (`user_id`),
   KEY `idx_expires_consumed` (`expires_at`,`consumed_at`),
+  KEY `idx_purpose` (`purpose`),
   CONSTRAINT `email_otps_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `market_settings`
+--
+
+DROP TABLE IF EXISTS `market_settings`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `market_settings` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `is_checkout_enabled` tinyint(1) NOT NULL DEFAULT '0',
+  `banner_message` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `coming_soon_message` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'Payments are being finalized. Coming soon!',
+  `footer_note` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'Prices are subject to change. All taxes included.',
+  `fx_hint_usd_to_inr` decimal(12,4) DEFAULT '83.5000',
+  `show_effective_price` tinyint(1) NOT NULL DEFAULT '1',
+  `show_bonus_breakdown` tinyint(1) NOT NULL DEFAULT '1',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -225,7 +285,7 @@ CREATE TABLE `quiz_attempts` (
   CONSTRAINT `quiz_attempts_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chk_correct_count` CHECK (((`correct_count` >= 0) and (`correct_count` <= 5))),
   CONSTRAINT `chk_multiplier` CHECK (((`multiplier` >= 0.00) and (`multiplier` <= 1.00)))
-) ENGINE=InnoDB AUTO_INCREMENT=94 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=98 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -254,7 +314,7 @@ CREATE TABLE `user_campaign_activity` (
   KEY `idx_active_session` (`active_session_token`),
   CONSTRAINT `user_campaign_activity_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `user_campaign_activity_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=77 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=79 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -316,7 +376,7 @@ CREATE TABLE `visit_tokens` (
   KEY `visit_tokens_ibfk_2` (`campaign_id`),
   CONSTRAINT `visit_tokens_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `visit_tokens_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=146 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=150 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -348,7 +408,7 @@ CREATE TABLE `visits` (
   CONSTRAINT `visits_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `visits_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE,
   CONSTRAINT `visits_ibfk_3` FOREIGN KEY (`campaign_owner_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=86 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=88 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -380,7 +440,7 @@ CREATE TABLE `wallet_audit_logs` (
   CONSTRAINT `wallet_audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `wallet_audit_logs_ibfk_2` FOREIGN KEY (`actor_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `wallet_audit_logs_ibfk_3` FOREIGN KEY (`txn_id`) REFERENCES `wallet_transactions` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -418,7 +478,7 @@ CREATE TABLE `wallet_transactions` (
   CONSTRAINT `wallet_transactions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `wallet_transactions_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE SET NULL,
   CONSTRAINT `chk_txn_amount` CHECK ((`amount` > 0))
-) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -458,4 +518,4 @@ CREATE TABLE `wallets` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-10-17 15:22:47
+-- Dump completed on 2025-10-17 17:17:57
