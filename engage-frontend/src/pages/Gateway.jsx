@@ -499,23 +499,30 @@ export default function Gateway() {
 
         {/* Claim Button */}
         <Card>
-          <Button
-            onClick={handleClaim}
-            disabled={!canClaim || isClaiming}
-            className="w-full text-lg py-4"
-          >
-            {isClaiming
-              ? "Claiming..."
-              : canClaim
-                ? `Claim Reward (${formatCoinsValue(quizResult?.reward_amount || 0)} coins)`
-                : !isComplete
-                  ? `Wait ${requiredDuration - activeTime}s to unlock quiz`
-                  : !quizCompleted
-                    ? "Complete the quiz first"
-                    : quizResult?.passed
-                      ? "Claim your reward!"
-                      : "Quiz failed - No reward"}
-          </Button>
+          {quizCompleted && !quizResult?.passed ? (
+            <Button
+              onClick={handleCancel}
+              className="w-full text-lg py-4 bg-slate-600 hover:bg-slate-700"
+            >
+              Return to Campaigns
+            </Button>
+          ) : (
+            <Button
+              onClick={handleClaim}
+              disabled={!canClaim || isClaiming}
+              className="w-full text-lg py-4"
+            >
+              {isClaiming
+                ? "Claiming..."
+                : canClaim
+                  ? `Claim Reward (${formatCoinsValue(quizResult?.reward_amount || 0)} coins)`
+                  : !isComplete
+                    ? `Wait ${requiredDuration - activeTime}s to unlock quiz`
+                    : !quizCompleted
+                      ? "Complete the quiz first"
+                      : "Claim your reward!"}
+            </Button>
+          )}
         </Card>
 
         {/* Quiz Modal */}
