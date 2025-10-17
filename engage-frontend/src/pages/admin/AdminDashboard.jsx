@@ -70,6 +70,12 @@ export default function AdminDashboard() {
           >
             View Logs
           </Link>
+          <Link
+            to="/admin/coin-packs"
+            className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition"
+          >
+            Manage Coin Packs
+          </Link>
         </div>
       </div>
 
@@ -176,6 +182,16 @@ export default function AdminDashboard() {
             <div className="font-medium">Enforcement Logs</div>
             <div className="text-sm text-slate-600 mt-1">
               Review limit enforcement and user activity
+            </div>
+          </Link>
+
+          <Link
+            to="/admin/coin-packs"
+            className="p-4 border border-slate-300 rounded hover:bg-slate-50 transition"
+          >
+            <div className="font-medium">Coin Pack Management</div>
+            <div className="text-sm text-slate-600 mt-1">
+              Edit pricing, coin amounts, and bonus percentages
             </div>
           </Link>
         </div>

@@ -22,6 +22,7 @@ import AdminUserDetails from "./pages/admin/AdminUserDetails";
 import AdminLimits from "./pages/admin/AdminLimits";
 import AdminLogs from "./pages/admin/AdminLogs";
 import AdminCampaigns from "./pages/admin/AdminCampaigns";
+import AdminCoinPacks from "./pages/admin/AdminCoinPacks";
 
 const router = createBrowserRouter([
   {
@@ -83,6 +84,10 @@ const router = createBrowserRouter([
       {
         path: "admin/campaigns",
         element: <AuthGate><AdminCampaigns /></AuthGate>
+      },
+      {
+        path: "admin/coin-packs",
+        element: <AuthGate><AdminCoinPacks /></AuthGate>
       },
 
       { path: "*", element: <div className="text-slate-600">404 • Not found</div> },

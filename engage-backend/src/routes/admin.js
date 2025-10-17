@@ -774,4 +774,162 @@ router.get('/wallet/:userId/transactions', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /admin/coin-packs
+ * Get all coin packs (including inactive)
+ */
+router.get('/coin-packs', async (req, res, next) => {
+  try {
+    const [packs] = await db.query(
+      `SELECT id, tier_name, base_coins, bonus_percent, price_inr, price_usd,
+              is_featured, is_popular, is_active, display_order, badge_text, description,
+              created_at, updated_at
+       FROM coin_packs
+       ORDER BY display_order ASC`
+    );
+
+    res.json({ packs });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /admin/coin-packs/:id
+ * Update a coin pack
+ */
+router.put('/coin-packs/:id', async (req, res, next) => {
+  try {
+    const packId = parseInt(req.params.id, 10);
+    const {
+      tier_name,
+      base_coins,
+      bonus_percent,
+      price_inr,
+      price_usd,
+      is_featured,
+      is_popular,
+      is_active,
+      display_order,
+      badge_text,
+      description,
+    } = req.body;
+
+    // Validate required fields
+    if (!tier_name || base_coins === undefined || bonus_percent === undefined ||
+        price_inr === undefined || price_usd === undefined) {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Missing required fields' },
+      });
+    }
+
+    // Validate numeric values
+    if (base_coins <= 0 || bonus_percent < 0 || bonus_percent > 100 ||
+        price_inr <= 0 || price_usd <= 0) {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Invalid numeric values' },
+      });
+    }
+
+    // Check if pack exists
+    const [existing] = await db.query('SELECT id FROM coin_packs WHERE id = ?', [packId]);
+    if (existing.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Coin pack not found' },
+      });
+    }
+
+    // Update pack
+    await db.query(
+      `UPDATE coin_packs SET
+        tier_name = ?,
+        base_coins = ?,
+        bonus_percent = ?,
+        price_inr = ?,
+        price_usd = ?,
+        is_featured = ?,
+        is_popular = ?,
+        is_active = ?,
+        display_order = ?,
+        badge_text = ?,
+        description = ?
+       WHERE id = ?`,
+      [
+        tier_name,
+        base_coins,
+        bonus_percent,
+        price_inr,
+        price_usd,
+        is_featured ? 1 : 0,
+        is_popular ? 1 : 0,
+        is_active ? 1 : 0,
+        display_order || 0,
+        badge_text || null,
+        description || null,
+        packId,
+      ]
+    );
+
+    console.log(`[Admin] Coin pack ${packId} (${tier_name}) updated by admin ${req.user.id}`);
+
+    res.json({ success: true, message: 'Coin pack updated successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /admin/campaigns/:id
+ * Delete a campaign (admin only)
+ */
+router.delete('/campaigns/:id', async (req, res, next) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    const { confirm } = req.body;
+
+    if (confirm !== 'DELETE') {
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Confirmation required. Send {"confirm": "DELETE"}' },
+      });
+    }
+
+    if (isNaN(campaignId)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_ID', message: 'Invalid campaign ID' },
+      });
+    }
+
+    // Check if campaign exists
+    const [campaigns] = await db.query(
+      'SELECT id, public_id, title, user_id FROM campaigns WHERE id = ?',
+      [campaignId]
+    );
+
+    if (campaigns.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Campaign not found' },
+      });
+    }
+
+    const campaign = campaigns[0];
+
+    // Delete campaign (cascading will handle related records like visits, enforcement logs)
+    await db.query('DELETE FROM campaigns WHERE id = ?', [campaignId]);
+
+    console.log(`[Admin] Campaign ${campaignId} (${campaign.title}) DELETED by admin ${req.user.id}`);
+
+    res.json({
+      success: true,
+      message: 'Campaign deleted successfully',
+      deleted_campaign: {
+        id: campaign.id,
+        public_id: campaign.public_id,
+        title: campaign.title,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

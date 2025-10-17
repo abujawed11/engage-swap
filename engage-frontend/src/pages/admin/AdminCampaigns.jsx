@@ -4,6 +4,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { adminAPI } from '../../lib/adminApi';
 import { formatCoinsValue } from '../../lib/coins';
+import { apiRequest } from '../../lib/api';
 
 export default function AdminCampaigns() {
   const [campaigns, setCampaigns] = useState([]);
@@ -12,6 +13,7 @@ export default function AdminCampaigns() {
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     fetchCampaigns();
@@ -30,6 +32,30 @@ export default function AdminCampaigns() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteCampaign = async (campaignId, campaignTitle) => {
+    if (!window.confirm(`Are you sure you want to DELETE campaign "${campaignTitle}"?\n\nThis action CANNOT be undone and will remove all associated data.`)) {
+      return;
+    }
+
+    try {
+      setDeletingId(campaignId);
+      setError('');
+
+      await apiRequest(`/admin/campaigns/${campaignId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirm: 'DELETE' }),
+      });
+
+      // Refresh campaigns list
+      await fetchCampaigns();
+    } catch (err) {
+      console.error('Error deleting campaign:', err);
+      setError(err.message);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -162,6 +188,13 @@ export default function AdminCampaigns() {
                       <span className="text-xs text-slate-500">
                         {new Date(campaign.created_at).toLocaleDateString()}
                       </span>
+                      <button
+                        onClick={() => handleDeleteCampaign(campaign.id, campaign.title)}
+                        disabled={deletingId === campaign.id}
+                        className="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {deletingId === campaign.id ? 'Deleting...' : 'Delete'}
+                      </button>
                     </div>
                   </div>
                 </div>
