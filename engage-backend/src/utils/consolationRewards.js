@@ -104,17 +104,31 @@ async function issueConsolationReward(connection, userId, campaignId, visitToken
 
   let txnId;
   if (existingTxn.length === 0) {
-    // Create transaction
+    // Update wallet balance FIRST
+    await connection.query(
+      'UPDATE wallets SET available = available + ?, lifetime_earned = lifetime_earned + ? WHERE user_id = ?',
+      [wallet.formatAmount(amount), wallet.formatAmount(amount), userId]
+    );
+
+    // Get the updated balance
+    const [updatedWallet] = await connection.query(
+      'SELECT available FROM wallets WHERE user_id = ?',
+      [userId]
+    );
+    const balanceAfter = wallet.formatAmount(updatedWallet[0].available);
+
+    // Create transaction with balance_after
     const [txnResult] = await connection.query(
       `INSERT INTO wallet_transactions
-       (user_id, type, status, amount, sign, campaign_id, source, reference_id, metadata)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (user_id, type, status, amount, sign, balance_after, campaign_id, source, reference_id, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         wallet.TXN_TYPE.BONUS,
         wallet.TXN_STATUS.SUCCESS,
         wallet.formatAmount(amount),
         wallet.TXN_SIGN.PLUS,
+        balanceAfter,
         finalCampaignId,
         'consolation',
         referenceId,
@@ -122,12 +136,6 @@ async function issueConsolationReward(connection, userId, campaignId, visitToken
       ]
     );
     txnId = txnResult.insertId;
-
-    // Update wallet balance
-    await connection.query(
-      'UPDATE wallets SET available = available + ?, lifetime_earned = lifetime_earned + ? WHERE user_id = ?',
-      [wallet.formatAmount(amount), wallet.formatAmount(amount), userId]
-    );
 
     // Create audit log
     await connection.query(

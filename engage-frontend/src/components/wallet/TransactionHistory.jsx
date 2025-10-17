@@ -324,6 +324,7 @@ export default function TransactionHistory() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance After</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
@@ -338,6 +339,9 @@ export default function TransactionHistory() {
                     <td className="px-4 py-3 text-sm text-gray-600 truncate max-w-xs">{txn.source}</td>
                     <td className={`px-4 py-3 text-sm text-right font-mono font-bold ${txn.sign === 'PLUS' ? 'text-green-600' : 'text-red-600'}`}>
                       {formatAmount(txn.amount, txn.sign)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right font-mono text-gray-700">
+                      {txn.balance_after ? parseFloat(txn.balance_after).toFixed(3) : '-'}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(txn.status)}`}>

@@ -238,17 +238,8 @@ async function createTransaction(params) {
       }
     }
 
-    // Insert transaction
-    const [txnResult] = await conn.query(
-      `INSERT INTO wallet_transactions
-       (user_id, type, status, amount, sign, campaign_id, source, reference_id, metadata)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userId, type, status, formatAmount(amount), sign, campaignId, source, referenceId, metadata ? JSON.stringify(metadata) : null]
-    );
-
-    const txnId = txnResult.insertId;
-
-    // Update wallet balance (only if status is SUCCESS)
+    // Update wallet balance first (only if status is SUCCESS)
+    let balanceAfter = null;
     if (status === TXN_STATUS.SUCCESS) {
       if (sign === TXN_SIGN.PLUS) {
         // Increase available balance
@@ -279,7 +270,24 @@ async function createTransaction(params) {
           );
         }
       }
+
+      // Get the updated balance
+      const [walletResult] = await conn.query(
+        'SELECT available FROM wallets WHERE user_id = ?',
+        [userId]
+      );
+      balanceAfter = formatAmount(walletResult[0].available);
     }
+
+    // Insert transaction with balance_after
+    const [txnResult] = await conn.query(
+      `INSERT INTO wallet_transactions
+       (user_id, type, status, amount, sign, balance_after, campaign_id, source, reference_id, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, type, status, formatAmount(amount), sign, balanceAfter, campaignId, source, referenceId, metadata ? JSON.stringify(metadata) : null]
+    );
+
+    const txnId = txnResult.insertId;
 
     // Create audit log entry
     await conn.query(
@@ -417,6 +425,7 @@ async function getTransactionHistory(params) {
       status,
       amount,
       sign,
+      balance_after,
       campaign_id,
       source,
       reference_id,
@@ -462,6 +471,7 @@ async function getTransactionById(txnId, userId) {
       wt.status,
       wt.amount,
       wt.sign,
+      wt.balance_after,
       wt.campaign_id,
       wt.source,
       wt.reference_id,

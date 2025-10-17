@@ -105,6 +105,12 @@ export default function TransactionDetailModal({ transaction, onClose }) {
               <p className="text-sm text-gray-500 mb-1">Date & Time</p>
               <p className="font-medium">{formatDate(transaction.created_at)}</p>
             </div>
+            {transaction.balance_after && (
+              <div className="col-span-2">
+                <p className="text-sm text-gray-500 mb-1">Balance After Transaction</p>
+                <p className="font-mono font-bold text-lg text-blue-600">{parseFloat(transaction.balance_after).toFixed(3)}</p>
+              </div>
+            )}
           </div>
 
           {/* Campaign Info */}

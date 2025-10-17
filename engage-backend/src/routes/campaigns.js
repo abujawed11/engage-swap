@@ -186,17 +186,31 @@ router.post('/', async (req, res, next) => {
       );
 
       if (existingTxn.length === 0) {
-        // Create SPENT transaction
+        // Update wallet balance FIRST
+        await connection.query(
+          'UPDATE wallets SET available = available - ?, lifetime_spent = lifetime_spent + ? WHERE user_id = ?',
+          [wallet.formatAmount(totalCoinsNeeded), wallet.formatAmount(totalCoinsNeeded), userId]
+        );
+
+        // Get the updated balance
+        const [updatedWallet] = await connection.query(
+          'SELECT available FROM wallets WHERE user_id = ?',
+          [userId]
+        );
+        const balanceAfter = wallet.formatAmount(updatedWallet[0].available);
+
+        // Create SPENT transaction with balance_after
         const [txnResult] = await connection.query(
           `INSERT INTO wallet_transactions
-           (user_id, type, status, amount, sign, campaign_id, source, reference_id, metadata)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (user_id, type, status, amount, sign, balance_after, campaign_id, source, reference_id, metadata)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             userId,
             wallet.TXN_TYPE.SPENT,
             wallet.TXN_STATUS.SUCCESS,
             wallet.formatAmount(totalCoinsNeeded),
             wallet.TXN_SIGN.MINUS,
+            balanceAfter,
             campaignId,
             'campaign_creation',
             referenceId,
@@ -212,12 +226,6 @@ router.post('/', async (req, res, next) => {
         );
 
         const txnId = txnResult.insertId;
-
-        // Update wallet balance
-        await connection.query(
-          'UPDATE wallets SET available = available - ?, lifetime_spent = lifetime_spent + ? WHERE user_id = ?',
-          [wallet.formatAmount(totalCoinsNeeded), wallet.formatAmount(totalCoinsNeeded), userId]
-        );
 
         // Create audit log
         await connection.query(
@@ -507,17 +515,31 @@ router.delete('/:id', async (req, res, next) => {
         );
 
         if (existingTxn.length === 0) {
-          // Create REFUND transaction
+          // Update wallet balance FIRST
+          await connection.query(
+            'UPDATE wallets SET available = available + ?, lifetime_earned = lifetime_earned + ? WHERE user_id = ?',
+            [wallet.formatAmount(refundAmount), wallet.formatAmount(refundAmount), userId]
+          );
+
+          // Get the updated balance
+          const [updatedWallet] = await connection.query(
+            'SELECT available FROM wallets WHERE user_id = ?',
+            [userId]
+          );
+          const balanceAfter = wallet.formatAmount(updatedWallet[0].available);
+
+          // Create REFUND transaction with balance_after
           const [txnResult] = await connection.query(
             `INSERT INTO wallet_transactions
-             (user_id, type, status, amount, sign, campaign_id, source, reference_id, metadata)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (user_id, type, status, amount, sign, balance_after, campaign_id, source, reference_id, metadata)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               userId,
               wallet.TXN_TYPE.REFUND,
               wallet.TXN_STATUS.SUCCESS,
               wallet.formatAmount(refundAmount),
               wallet.TXN_SIGN.PLUS,
+              balanceAfter,
               campaignId,
               'campaign_deletion',
               referenceId,
@@ -534,12 +556,6 @@ router.delete('/:id', async (req, res, next) => {
           );
 
           const txnId = txnResult.insertId;
-
-          // Update wallet balance
-          await connection.query(
-            'UPDATE wallets SET available = available + ?, lifetime_earned = lifetime_earned + ? WHERE user_id = ?',
-            [wallet.formatAmount(refundAmount), wallet.formatAmount(refundAmount), userId]
-          );
 
           // Create audit log
           await connection.query(
