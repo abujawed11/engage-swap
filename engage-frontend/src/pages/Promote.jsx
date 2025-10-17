@@ -26,6 +26,41 @@ const isValidUrl = (u) => {
   }
 };
 
+// Helper to format time ago
+const formatTimeAgo = (dateString) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - date) / 1000);
+
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  return `${Math.floor(diffInSeconds / 604800)}w ago`;
+};
+
+// Helper to get value tier
+const getValueTier = (coinsPerVisit) => {
+  const coins = parseFloat(coinsPerVisit);
+  if (coins >= 10) return { label: 'HIGH', color: 'bg-purple-100 text-purple-700 border-purple-300' };
+  if (coins >= 5) return { label: 'MEDIUM', color: 'bg-blue-100 text-blue-700 border-blue-300' };
+  return { label: 'LOW', color: 'bg-gray-100 text-gray-600 border-gray-300' };
+};
+
+// Helper to calculate total budget
+const calculateTotalBudgetForCampaign = (campaign) => {
+  const baseCoins = parseFloat(campaign.coins_per_visit);
+  const totalClicks = campaign.total_clicks;
+  const duration = campaign.watch_duration || 30;
+
+  // Calculate extra time cost (5 coins per 15s step beyond 30s)
+  const steps = (duration - 30) / 15;
+  const extraTime = steps > 0 ? 5 * steps : 0;
+
+  // Total budget = (baseCoins × totalClicks) + extraTime
+  return (baseCoins * totalClicks) + extraTime;
+};
+
 export default function Promote() {
   const { user, setUser } = useApp();
   const [campaigns, setCampaigns] = useState([]);
@@ -179,6 +214,9 @@ export default function Promote() {
         questions: []
       });
       await fetchCampaigns();
+
+      // Navigate to "Your Campaigns" tab to show the newly created campaign
+      setActiveTab("campaigns");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -405,12 +443,16 @@ export default function Promote() {
         ) : (
           <ul className="mt-4 space-y-3">
             {campaigns.map((c) => {
+              const valueTier = getValueTier(c.coins_per_visit);
+              const totalBudget = calculateTotalBudgetForCampaign(c);
+
               return (
-                <li key={c.id} className="rounded-lg border p-3">
-                  <div className="flex items-start justify-between gap-3">
+                <li key={c.id} className="rounded-lg border p-4">
+                  <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className="font-medium">{c.title}</div>
+                      {/* Title and Badges */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="text-lg font-semibold">{c.title}</div>
                         <span
                           className={`text-xs px-2 py-0.5 rounded ${
                             c.is_finished
@@ -422,13 +464,41 @@ export default function Promote() {
                         >
                           {c.is_finished ? "Finished" : c.is_paused ? "Paused" : "Active"}
                         </span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded border ${valueTier.color}`}>
+                          {valueTier.label} VALUE
+                        </span>
+                        {c.created_at && (
+                          <span className="text-xs text-slate-400">
+                            • Created {formatTimeAgo(c.created_at)}
+                          </span>
+                        )}
                       </div>
-                      <a href={c.url} target="_blank" rel="noreferrer" className="text-sm text-teal-700 break-all">
+
+                      {/* URL */}
+                      <a
+                        href={c.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-teal-700 break-all hover:underline"
+                      >
                         {c.url}
                       </a>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {formatCoinsValue(c.coins_per_visit)} coins/visit • {c.watch_duration || 30}s watch • {c.clicks_served}/{c.total_clicks} clicks
+
+                      {/* Stats */}
+                      <div className="mt-2 flex items-center gap-4 text-sm text-slate-600 flex-wrap">
+                        <span className="font-semibold text-teal-700">
+                          +{formatCoinsValue(c.coins_per_visit)} coins
+                        </span>
+                        <span>•</span>
+                        <span>{c.watch_duration || 30}s watch required</span>
+                        <span>•</span>
+                        <span>{c.clicks_served}/{c.total_clicks} completed</span>
+                        <span>•</span>
+                        <span className="text-xs text-slate-500">
+                          Total Budget: {formatCoinsValue(totalBudget)}
+                        </span>
                       </div>
+
                       {/* Progress bar */}
                       <div className="mt-2 w-full bg-slate-200 rounded-full h-2">
                         <div
@@ -437,6 +507,8 @@ export default function Promote() {
                         />
                       </div>
                     </div>
+
+                    {/* Action Buttons */}
                     <div className="flex items-start gap-2 shrink-0">
                       {c.is_finished ? (
                         <Button
