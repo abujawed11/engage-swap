@@ -24,6 +24,41 @@ export default function Earn() {
   const [error, setError] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Helper to format time ago
+  const formatTimeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    return `${Math.floor(diffInSeconds / 604800)}w ago`;
+  };
+
+  // Helper to get value tier
+  const getValueTier = (coinsPerVisit) => {
+    const coins = parseFloat(coinsPerVisit);
+    if (coins >= 10) return { label: 'HIGH', color: 'bg-purple-100 text-purple-700 border-purple-300' };
+    if (coins >= 5) return { label: 'MEDIUM', color: 'bg-blue-100 text-blue-700 border-blue-300' };
+    return { label: 'LOW', color: 'bg-gray-100 text-gray-600 border-gray-300' };
+  };
+
+  // Helper to calculate total budget
+  const calculateTotalBudget = (campaign) => {
+    const baseCoins = parseFloat(campaign.coins_per_visit);
+    const totalClicks = campaign.total_clicks;
+    const duration = campaign.watch_duration || 30;
+
+    // Calculate extra time cost (5 coins per 15s step beyond 30s)
+    const steps = (duration - 30) / 15;
+    const extraTime = steps > 0 ? 5 * steps : 0;
+
+    // Total budget = (baseCoins × totalClicks) + extraTime
+    return (baseCoins * totalClicks) + extraTime;
+  };
+
   // Check if returning from gateway with toast
   useEffect(() => {
     if (location.state?.showToast) {
@@ -146,15 +181,27 @@ export default function Earn() {
             </div>
           </Card>
 
-          {campaigns.map((campaign) => (
+          {campaigns.map((campaign) => {
+            const valueTier = getValueTier(campaign.coins_per_visit);
+            const totalBudget = calculateTotalBudget(campaign);
+
+            return (
             <Card key={campaign.id}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <div className="text-lg font-semibold">{campaign.title}</div>
                     {campaign.creator_username && (
                       <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                         by @{campaign.creator_username}
+                      </span>
+                    )}
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded border ${valueTier.color}`}>
+                      {valueTier.label} VALUE
+                    </span>
+                    {campaign.created_at && (
+                      <span className="text-xs text-slate-400">
+                        • Created {formatTimeAgo(campaign.created_at)}
                       </span>
                     )}
                   </div>
@@ -166,7 +213,7 @@ export default function Earn() {
                   >
                     {campaign.url}
                   </a>
-                  <div className="mt-2 flex items-center gap-4 text-sm text-slate-600">
+                  <div className="mt-2 flex items-center gap-4 text-sm text-slate-600 flex-wrap">
                     <span className="font-semibold text-teal-700">
                       +{formatCoinsValue(campaign.coins_per_visit)} coins
                     </span>
@@ -174,6 +221,10 @@ export default function Earn() {
                     <span>{campaign.watch_duration || 30}s watch required</span>
                     <span>•</span>
                     <span>{campaign.clicks_served}/{campaign.total_clicks} completed</span>
+                    <span>•</span>
+                    <span className="text-xs text-slate-500">
+                      Total Budget: {formatCoinsValue(totalBudget)}
+                    </span>
                   </div>
                   {/* Progress bar */}
                   <div className="mt-2 w-full bg-slate-200 rounded-full h-2">
@@ -226,7 +277,8 @@ export default function Earn() {
                 </div>
               </div>
             </Card>
-          ))}
+          );
+          })}
         </div>
       )}
 
