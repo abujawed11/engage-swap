@@ -249,13 +249,22 @@ export default function Earn() {
                         {campaign.status_message}
                       </p>
                       {campaign.retry_info && (
-                        <p className={`text-xs mt-1 ${
-                          campaign.availability_status === 'LIMIT_REACHED'
-                            ? 'text-red-600'
-                            : 'text-yellow-600'
-                        }`}>
-                          {campaign.retry_info}
-                        </p>
+                        <>
+                          <p className={`text-xs mt-1 ${
+                            campaign.availability_status === 'LIMIT_REACHED'
+                              ? 'text-red-600'
+                              : 'text-yellow-600'
+                          }`}>
+                            {campaign.retry_info}
+                          </p>
+                          <p className={`text-xs mt-1 italic ${
+                            campaign.availability_status === 'LIMIT_REACHED'
+                              ? 'text-red-500'
+                              : 'text-yellow-500'
+                          }`}>
+                            💡 Refresh the page to see the latest availability
+                          </p>
+                        </>
                       )}
                     </div>
                   )}
