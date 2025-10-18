@@ -241,31 +241,36 @@ export default function Earn() {
                         ? 'bg-red-50 border-red-200'
                         : 'bg-yellow-50 border-yellow-200'
                     }`}>
-                      <p className={`text-sm font-medium ${
-                        campaign.availability_status === 'LIMIT_REACHED'
-                          ? 'text-red-800'
-                          : 'text-yellow-800'
-                      }`}>
-                        {campaign.status_message}
-                      </p>
-                      {campaign.retry_info && (
-                        <>
-                          <p className={`text-xs mt-1 ${
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg">
+                          {campaign.availability_status === 'LIMIT_REACHED' ? '🚫' : '⏳'}
+                        </span>
+                        <div className="flex-1">
+                          <p className={`text-sm font-semibold ${
                             campaign.availability_status === 'LIMIT_REACHED'
-                              ? 'text-red-600'
-                              : 'text-yellow-600'
+                              ? 'text-red-800'
+                              : 'text-yellow-800'
                           }`}>
-                            {campaign.retry_info}
+                            {campaign.status_message}
                           </p>
-                          <p className={`text-xs mt-1 italic ${
-                            campaign.availability_status === 'LIMIT_REACHED'
-                              ? 'text-red-500'
-                              : 'text-yellow-500'
-                          }`}>
-                            💡 Refresh the page to see the latest availability
-                          </p>
-                        </>
-                      )}
+                          {campaign.retry_info && (
+                            <>
+                              <p className={`text-xs mt-1 font-medium ${
+                                campaign.availability_status === 'LIMIT_REACHED'
+                                  ? 'text-red-700'
+                                  : 'text-yellow-700'
+                              }`}>
+                                ⏰ {campaign.retry_info}
+                              </p>
+                              {campaign.availability_status === 'LIMIT_REACHED' && (
+                                <p className="text-xs mt-1 text-red-600 italic">
+                                  💡 Limits reset automatically at midnight (12:00 AM IST)
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

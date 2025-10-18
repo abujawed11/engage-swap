@@ -1,8 +1,10 @@
 const db = require('../db');
+const { getCurrentDateIST, getSecondsUntilMidnightIST, getTimeUntilMidnightISTFormatted } = require('./timezone');
 
 /**
  * Campaign Limit Enforcement Utilities
- * Handles dynamic per-user attempt limits, cooldowns, and fair rotation
+ * Handles dynamic per-user attempt limits with midnight-reset daily counter (IST timezone)
+ * Limits reset automatically every midnight (00:00 IST) - calendar-day-based, not rolling 24h
  */
 
 // Cache for config values (refresh every 5 minutes)
@@ -112,6 +114,7 @@ function getActiveSessionTimeout(config) {
 
 /**
  * Check if user can CLAIM reward for a campaign (enforce all limits at claim time)
+ * Uses midnight-reset daily counter (IST timezone) instead of rolling 24-hour window
  * Attempts are counted ONLY when user successfully claims reward
  * @param {object} connection - Database connection (for transaction)
  * @param {number} userId
@@ -125,81 +128,70 @@ async function checkCampaignClaimEligibility(connection, userId, campaignId, coi
   const attemptLimit = getAttemptLimit(tier, config);
   const cooldownSeconds = getCooldownSeconds(config);
 
-  // Get or create user campaign activity record
-  const [activities] = await connection.query(
-    `SELECT id, attempt_count_24h, last_claimed_at
-     FROM user_campaign_activity
-     WHERE user_id = ? AND campaign_id = ?
+  // Get current date in IST timezone (YYYY-MM-DD format)
+  const dateKey = getCurrentDateIST();
+
+  // Get today's attempt count from daily caps table
+  const [dailyCaps] = await connection.query(
+    `SELECT attempts
+     FROM user_campaign_daily_caps
+     WHERE user_id = ? AND campaign_id = ? AND date_key = ?
      FOR UPDATE`,
-    [userId, campaignId]
+    [userId, campaignId, dateKey]
   );
 
-  let activity = activities[0];
-  const now = new Date();
-
-  // If no activity exists, create a placeholder for tracking
-  if (!activity) {
-    const [result] = await connection.query(
-      `INSERT INTO user_campaign_activity (user_id, campaign_id, attempt_count_24h, last_claimed_at)
-       VALUES (?, ?, 0, NULL)`,
-      [userId, campaignId]
-    );
-
-    // Fetch the newly created record
-    const [newActivities] = await connection.query(
-      `SELECT id, attempt_count_24h, last_claimed_at
-       FROM user_campaign_activity
-       WHERE id = ?
-       FOR UPDATE`,
-      [result.insertId]
-    );
-    activity = newActivities[0];
+  let currentAttemptCount = 0;
+  if (dailyCaps.length > 0) {
+    currentAttemptCount = dailyCaps[0].attempts;
   }
 
-  // Reset attempt count if 24 hours have passed since last CLAIMED reward
-  let currentAttemptCount = activity.attempt_count_24h;
-  if (activity.last_claimed_at) {
-    const hoursSinceLastClaim = (now - new Date(activity.last_claimed_at)) / (1000 * 60 * 60);
-    if (hoursSinceLastClaim >= 24) {
-      currentAttemptCount = 0;
-      // Reset the count in database
-      await connection.query(
-        'UPDATE user_campaign_activity SET attempt_count_24h = 0 WHERE id = ?',
-        [activity.id]
-      );
-    }
-  }
-
-  // Check daily limit
+  // Check daily limit (resets at midnight IST automatically)
   if (currentAttemptCount >= attemptLimit) {
     // Log enforcement
     await logEnforcement(connection, userId, campaignId, coinsPerVisit, tier, 'LIMIT_REACHED', currentAttemptCount, null, null);
 
+    // Calculate time until reset
+    const secondsUntilReset = getSecondsUntilMidnightIST();
+    const timeFormatted = getTimeUntilMidnightISTFormatted();
+
     return {
       allowed: false,
       outcome: 'LIMIT_REACHED',
-      message: `You've reached your daily limit for this campaign (${attemptLimit} successful attempts). Try again tomorrow.`,
+      message: `Daily limit reached (${currentAttemptCount}/${attemptLimit} attempts). Resets at 12:00 AM IST (in ${timeFormatted}).`,
+      retry_after_sec: secondsUntilReset,
       tier,
     };
   }
 
   // Check cooldown - ONLY for campaigns with coins_per_visit >= 10
-  if (coinsPerVisit >= 10 && activity.last_claimed_at) {
-    const secondsSinceLastClaim = (now - new Date(activity.last_claimed_at)) / 1000;
+  // Use user_campaign_activity to track last claimed timestamp for cooldown
+  if (coinsPerVisit >= 10) {
+    const [activities] = await connection.query(
+      `SELECT last_claimed_at
+       FROM user_campaign_activity
+       WHERE user_id = ? AND campaign_id = ?
+       FOR UPDATE`,
+      [userId, campaignId]
+    );
 
-    if (secondsSinceLastClaim < cooldownSeconds) {
-      const retryAfterSec = Math.ceil(cooldownSeconds - secondsSinceLastClaim);
+    if (activities.length > 0 && activities[0].last_claimed_at) {
+      const now = new Date();
+      const secondsSinceLastClaim = (now - new Date(activities[0].last_claimed_at)) / 1000;
 
-      // Log enforcement
-      await logEnforcement(connection, userId, campaignId, coinsPerVisit, tier, 'COOLDOWN_ACTIVE', currentAttemptCount, Math.floor(secondsSinceLastClaim), retryAfterSec);
+      if (secondsSinceLastClaim < cooldownSeconds) {
+        const retryAfterSec = Math.ceil(cooldownSeconds - secondsSinceLastClaim);
 
-      return {
-        allowed: false,
-        outcome: 'COOLDOWN_ACTIVE',
-        message: 'Please wait before claiming this campaign again.',
-        retry_after_sec: retryAfterSec,
-        tier,
-      };
+        // Log enforcement
+        await logEnforcement(connection, userId, campaignId, coinsPerVisit, tier, 'COOLDOWN_ACTIVE', currentAttemptCount, Math.floor(secondsSinceLastClaim), retryAfterSec);
+
+        return {
+          allowed: false,
+          outcome: 'COOLDOWN_ACTIVE',
+          message: 'Please wait before claiming this campaign again.',
+          retry_after_sec: retryAfterSec,
+          tier,
+        };
+      }
     }
   }
 
@@ -213,32 +205,49 @@ async function checkCampaignClaimEligibility(connection, userId, campaignId, coi
 }
 
 /**
- * Record successful claim - increment counter and update timestamp
+ * Record successful claim - increment daily counter atomically
  * Called AFTER reward has been successfully issued
+ * Uses midnight-reset daily caps table with transaction-safe atomic increment
  */
 async function recordSuccessfulClaim(connection, userId, campaignId, coinsPerVisit) {
   const config = await loadConfig();
   const tier = getValueTierWithConfig(coinsPerVisit, config);
+  const attemptLimit = getAttemptLimit(tier, config);
   const now = new Date();
 
-  // Increment attempt count and update last claimed timestamp
+  // Get current date in IST timezone
+  const dateKey = getCurrentDateIST();
+
+  // Atomic increment using INSERT ... ON DUPLICATE KEY UPDATE
+  // This ensures thread-safe increment even with concurrent requests
+  await connection.query(
+    `INSERT INTO user_campaign_daily_caps (user_id, campaign_id, date_key, attempts)
+     VALUES (?, ?, ?, 1)
+     ON DUPLICATE KEY UPDATE
+       attempts = CASE
+         WHEN attempts < ? THEN attempts + 1
+         ELSE attempts
+       END`,
+    [userId, campaignId, dateKey, attemptLimit]
+  );
+
+  // Also update last_claimed_at timestamp in user_campaign_activity for cooldown tracking
   await connection.query(
     `INSERT INTO user_campaign_activity (user_id, campaign_id, attempt_count_24h, last_claimed_at)
-     VALUES (?, ?, 1, ?)
+     VALUES (?, ?, 0, ?)
      ON DUPLICATE KEY UPDATE
-       attempt_count_24h = attempt_count_24h + 1,
        last_claimed_at = ?`,
     [userId, campaignId, now, now]
   );
 
-  // Log the successful claim
-  const [activity] = await connection.query(
-    'SELECT attempt_count_24h, last_claimed_at FROM user_campaign_activity WHERE user_id = ? AND campaign_id = ?',
-    [userId, campaignId]
+  // Get the updated attempt count for logging
+  const [dailyCaps] = await connection.query(
+    'SELECT attempts FROM user_campaign_daily_caps WHERE user_id = ? AND campaign_id = ? AND date_key = ?',
+    [userId, campaignId, dateKey]
   );
 
-  if (activity.length > 0) {
-    await logEnforcement(connection, userId, campaignId, coinsPerVisit, tier, 'ALLOW', activity[0].attempt_count_24h, null, null);
+  if (dailyCaps.length > 0) {
+    await logEnforcement(connection, userId, campaignId, coinsPerVisit, tier, 'ALLOW', dailyCaps[0].attempts, null, null);
   }
 }
 
@@ -273,6 +282,7 @@ async function updateRotationTracking(connection, userId, campaignId) {
  * Get campaigns with availability status and scored ranking
  * Shows ALL campaigns but includes status info (available/cooldown/limit_reached)
  * Orders campaigns using score-based ranking system
+ * Uses midnight-reset daily counter (IST timezone) for limit checking
  * @param {number} userId
  * @param {number} limit
  * @returns {Promise<Array>} - Campaigns with availability_status field
@@ -283,16 +293,19 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
   const cooldownSeconds = getCooldownSeconds(config);
   const attemptLimits = config.attempt_limits || { high: 2, medium: 3, low: 5 };
 
-  // Get ALL campaigns with user activity data AND serve tracking
+  // Get current date in IST timezone for daily caps lookup
+  const dateKey = getCurrentDateIST();
+
+  // Get ALL campaigns with user activity data, serve tracking, AND daily caps
   const query = `
     SELECT
       c.id, c.public_id, c.title, c.url, c.coins_per_visit, c.watch_duration,
       c.total_clicks, c.clicks_served, c.created_at,
       u.username as creator_username,
-      uca.attempt_count_24h,
       uca.last_claimed_at,
       crt.last_served_at,
       crt.serve_count,
+      ucd.attempts as daily_attempts,
       CASE
         WHEN c.coins_per_visit >= ? THEN 'HIGH'
         WHEN c.coins_per_visit >= ? THEN 'MEDIUM'
@@ -303,12 +316,12 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
         WHEN c.coins_per_visit >= ? THEN ?
         ELSE ?
       END as daily_limit,
-      TIMESTAMPDIFF(SECOND, uca.last_claimed_at, NOW()) as seconds_since_last_claim,
-      TIMESTAMPDIFF(HOUR, uca.last_claimed_at, NOW()) as hours_since_last_claim
+      TIMESTAMPDIFF(SECOND, uca.last_claimed_at, NOW()) as seconds_since_last_claim
     FROM campaigns c
     INNER JOIN users u ON c.user_id = u.id
     LEFT JOIN user_campaign_activity uca ON c.id = uca.campaign_id AND uca.user_id = ?
     LEFT JOIN campaign_rotation_tracking crt ON c.id = crt.campaign_id AND crt.user_id = ?
+    LEFT JOIN user_campaign_daily_caps ucd ON c.id = ucd.campaign_id AND ucd.user_id = ? AND ucd.date_key = ?
     WHERE c.user_id != ?
       AND c.is_paused = 0
       AND c.is_finished = 0
@@ -326,27 +339,31 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
     // For JOINs and WHERE
     userId,
     userId,
+    userId,
+    dateKey,
     userId
   ]);
 
+  // Calculate seconds until midnight IST for showing reset time
+  const secondsUntilMidnight = getSecondsUntilMidnightIST();
+  const timeUntilMidnight = getTimeUntilMidnightISTFormatted();
+
   // Add availability status to each campaign
   const campaignsWithStatus = campaigns.map(campaign => {
-    const attemptCount = campaign.attempt_count_24h || 0;
+    const attemptCount = campaign.daily_attempts || 0;
     const dailyLimit = campaign.daily_limit;
     const secondsSinceClaim = campaign.seconds_since_last_claim;
-    const hoursSinceClaim = campaign.hours_since_last_claim;
     const isHighValue = campaign.coins_per_visit >= valueThresholds.high;
 
-    // Check if limit reached (within last 24h)
-    if (campaign.last_claimed_at && hoursSinceClaim < 24 && attemptCount >= dailyLimit) {
-      const hoursUntilReset = Math.ceil(24 - hoursSinceClaim);
+    // Check if daily limit reached (resets at midnight IST)
+    if (attemptCount >= dailyLimit) {
       return {
         ...campaign,
         available: false,
         availability_status: 'LIMIT_REACHED',
         status_message: `Daily limit reached (${attemptCount}/${dailyLimit})`,
-        retry_info: `Available in ${hoursUntilReset} hour(s)`,
-        retry_after_seconds: null,
+        retry_info: `Resets at 12:00 AM IST (in ${timeUntilMidnight})`,
+        retry_after_seconds: secondsUntilMidnight,
       };
     }
 

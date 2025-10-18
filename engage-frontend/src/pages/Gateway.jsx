@@ -328,7 +328,16 @@ export default function Gateway() {
         },
       });
     } catch (err) {
-      setError(err.message || "Failed to claim reward");
+      // Enhanced error handling for limit reached
+      const errorMessage = err.message || "Failed to claim reward";
+
+      // If error contains retry info, display it prominently
+      if (err.retry_after_sec || errorMessage.includes('IST')) {
+        setError(`⚠️ ${errorMessage}`);
+      } else {
+        setError(errorMessage);
+      }
+
       setIsClaiming(false);
     }
   };
