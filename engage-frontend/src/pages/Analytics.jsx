@@ -500,7 +500,6 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
                   >
                     Cost/Compl {sortConfig.key === 'coins_per_completion' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="text-center p-3 font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -541,14 +540,6 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
                     </td>
                     <td className="p-3 text-right font-mono">
                       {formatCoinsValue(campaign.coins_per_completion)}
-                    </td>
-                    <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        onClick={() => navigate(`/analytics/campaign/${campaign.id}`)}
-                        className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700"
-                      >
-                        Details →
-                      </Button>
                     </td>
                   </tr>
                 ))}

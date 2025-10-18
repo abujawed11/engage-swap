@@ -15,9 +15,12 @@ router.use(requireAdmin);
  */
 router.get('/stats', async (req, res, next) => {
   try {
-    // Total users
+    // Total users and coins (from wallets table)
     const [userStats] = await db.query(
-      'SELECT COUNT(*) as total_users, SUM(coins) as total_coins FROM users WHERE is_admin = 0'
+      `SELECT COUNT(DISTINCT u.id) as total_users, COALESCE(SUM(w.available), 0) as total_coins
+       FROM users u
+       LEFT JOIN wallets w ON u.id = w.user_id
+       WHERE u.is_admin = 0`
     );
 
     // Total campaigns
@@ -95,13 +98,16 @@ router.get('/users', async (req, res, next) => {
     );
     const total = countResult[0].total;
 
-    // Get users
+    // Get users with wallet balance
     const validSortColumns = ['username', 'email', 'coins', 'created_at'];
     const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
 
     const [users] = await db.query(
-      `SELECT id, public_id, username, email, coins, email_verified_at, ip_address, created_at, updated_at
-       FROM users
+      `SELECT u.id, u.public_id, u.username, u.email,
+              COALESCE(w.available, 0) as coins,
+              u.email_verified_at, u.ip_address, u.created_at, u.updated_at
+       FROM users u
+       LEFT JOIN wallets w ON u.id = w.user_id
        ${whereClause}
        ORDER BY ${sortColumn} ${sortOrder}
        LIMIT ? OFFSET ?`,
@@ -130,10 +136,15 @@ router.get('/users/:id', async (req, res, next) => {
   try {
     const userId = parseInt(req.params.id, 10);
 
-    // Get user details
+    // Get user details with wallet balance
     const [users] = await db.query(
-      `SELECT id, public_id, username, email, coins, is_admin, is_disabled, disabled_at, disabled_reason, email_verified_at, ip_address, created_at, updated_at
-       FROM users WHERE id = ?`,
+      `SELECT u.id, u.public_id, u.username, u.email,
+              COALESCE(w.available, 0) as coins,
+              u.is_admin, u.is_disabled, u.disabled_at, u.disabled_reason,
+              u.email_verified_at, u.ip_address, u.created_at, u.updated_at
+       FROM users u
+       LEFT JOIN wallets w ON u.id = w.user_id
+       WHERE u.id = ?`,
       [userId]
     );
 
