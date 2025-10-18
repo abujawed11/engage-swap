@@ -417,6 +417,185 @@ async function checkCampaignOwnership(campaignId, userId) {
   return campaigns[0].user_id === userId;
 }
 
+/**
+ * Get aggregated summary analytics for all campaigns owned by a user
+ *
+ * @param {number} userId - User ID
+ * @param {string} fromDateIST - Start date (YYYY-MM-DD)
+ * @param {string} toDateIST - End date (YYYY-MM-DD)
+ * @returns {Promise<object>} Summary metrics and per-campaign data
+ */
+async function getUserCampaignsSummary(userId, fromDateIST, toDateIST) {
+  validateDateRange(fromDateIST, toDateIST);
+
+  // Get all campaigns for the user
+  const [campaigns] = await db.query(
+    `SELECT
+      id,
+      title,
+      coins_per_visit,
+      total_clicks,
+      clicks_served,
+      (total_clicks - clicks_served) as clicks_remaining,
+      is_paused,
+      is_finished,
+      created_at
+     FROM campaigns
+     WHERE user_id = ?
+     ORDER BY created_at DESC`,
+    [userId]
+  );
+
+  if (campaigns.length === 0) {
+    return {
+      summary: {
+        total_visits: 0,
+        total_completions: 0,
+        avg_completion_rate: 0,
+        total_coins_spent: 0,
+        avg_coins_per_completion: 0
+      },
+      campaigns: []
+    };
+  }
+
+  const campaignIds = campaigns.map(c => c.id);
+
+  // Try to get aggregated analytics from daily table first
+  const [dailyAnalyticsData] = await db.query(
+    `SELECT
+      campaign_id,
+      SUM(total_visits) as total_visits,
+      SUM(completed_visits) as completed_visits,
+      SUM(coins_spent) as coins_spent,
+      AVG(avg_quiz_accuracy) as avg_quiz_accuracy
+     FROM campaign_analytics_daily
+     WHERE campaign_id IN (?)
+       AND date_ist >= ?
+       AND date_ist <= ?
+     GROUP BY campaign_id`,
+    [campaignIds, fromDateIST, toDateIST]
+  );
+
+  // Check if we have data in daily table
+  const hasData = dailyAnalyticsData.length > 0 && dailyAnalyticsData[0].total_visits !== null;
+
+  console.log('[CampaignAnalytics] getUserCampaignsSummary:', {
+    userId,
+    fromDateIST,
+    toDateIST,
+    campaignIds,
+    dailyTableHasData: hasData,
+    dailyDataLength: dailyAnalyticsData.length
+  });
+
+  let analyticsMap = new Map();
+
+  if (hasData) {
+    // Use daily aggregation table data
+    console.log('[CampaignAnalytics] Using daily aggregation table');
+    dailyAnalyticsData.forEach(row => {
+      analyticsMap.set(row.campaign_id, {
+        visits: parseInt(row.total_visits) || 0,
+        completions: parseInt(row.completed_visits) || 0,
+        coins_spent: parseFloat(row.coins_spent) || 0,
+        avg_quiz_accuracy: parseFloat(row.avg_quiz_accuracy) || 0
+      });
+    });
+  } else {
+    // Fallback: compute from raw tables
+    console.log('[CampaignAnalytics] Falling back to raw tables query');
+    const [rawAnalyticsData] = await db.query(
+      `SELECT
+        v.campaign_id,
+        COUNT(*) as total_visits,
+        COUNT(CASE WHEN qa.passed = 1 THEN 1 END) as completed_visits,
+        SUM(CASE WHEN qa.passed = 1 THEN qa.reward_amount ELSE 0 END) as coins_spent,
+        AVG(CASE WHEN qa.total_count > 0 THEN (qa.correct_count / qa.total_count) * 100 ELSE 0 END) as avg_quiz_accuracy
+       FROM visits v
+       LEFT JOIN quiz_attempts qa ON v.visit_token = qa.visit_token
+       WHERE v.campaign_id IN (?)
+         AND DATE(CONVERT_TZ(v.visited_at, '+00:00', '+05:30')) >= ?
+         AND DATE(CONVERT_TZ(v.visited_at, '+00:00', '+05:30')) <= ?
+       GROUP BY v.campaign_id`,
+      [campaignIds, fromDateIST, toDateIST]
+    );
+
+    console.log('[CampaignAnalytics] Raw analytics query result:', {
+      rowCount: rawAnalyticsData.length,
+      rows: rawAnalyticsData
+    });
+
+    rawAnalyticsData.forEach(row => {
+      analyticsMap.set(row.campaign_id, {
+        visits: parseInt(row.total_visits) || 0,
+        completions: parseInt(row.completed_visits) || 0,
+        coins_spent: parseFloat(row.coins_spent) || 0,
+        avg_quiz_accuracy: parseFloat(row.avg_quiz_accuracy) || 0
+      });
+    });
+  }
+
+  // Combine campaign info with analytics
+  const campaignsWithAnalytics = campaigns.map(campaign => {
+    const analytics = analyticsMap.get(campaign.id) || {
+      visits: 0,
+      completions: 0,
+      coins_spent: 0,
+      avg_quiz_accuracy: 0
+    };
+
+    const completionRate = analytics.visits > 0
+      ? (analytics.completions / analytics.visits) * 100
+      : 0;
+
+    const coinsPerCompletion = analytics.completions > 0
+      ? analytics.coins_spent / analytics.completions
+      : 0;
+
+    return {
+      id: campaign.id,
+      title: campaign.title,
+      status: campaign.is_finished ? 'finished' : campaign.is_paused ? 'paused' : 'active',
+      coins_per_visit: parseFloat(campaign.coins_per_visit),
+      total_clicks: parseInt(campaign.total_clicks),
+      clicks_served: parseInt(campaign.clicks_served),
+      clicks_remaining: parseInt(campaign.clicks_remaining),
+      visits: analytics.visits,
+      completions: analytics.completions,
+      completion_rate: parseFloat(completionRate.toFixed(2)),
+      coins_spent: parseFloat(analytics.coins_spent.toFixed(3)),
+      coins_per_completion: parseFloat(coinsPerCompletion.toFixed(3)),
+      avg_quiz_accuracy: parseFloat(analytics.avg_quiz_accuracy.toFixed(1)),
+      created_at: campaign.created_at
+    };
+  });
+
+  // Calculate overall summary
+  const totalVisits = campaignsWithAnalytics.reduce((sum, c) => sum + c.visits, 0);
+  const totalCompletions = campaignsWithAnalytics.reduce((sum, c) => sum + c.completions, 0);
+  const totalCoinsSpent = campaignsWithAnalytics.reduce((sum, c) => sum + c.coins_spent, 0);
+
+  const avgCompletionRate = totalVisits > 0
+    ? (totalCompletions / totalVisits) * 100
+    : 0;
+
+  const avgCoinsPerCompletion = totalCompletions > 0
+    ? totalCoinsSpent / totalCompletions
+    : 0;
+
+  return {
+    summary: {
+      total_visits: totalVisits,
+      total_completions: totalCompletions,
+      avg_completion_rate: parseFloat(avgCompletionRate.toFixed(2)),
+      total_coins_spent: parseFloat(totalCoinsSpent.toFixed(3)),
+      avg_coins_per_completion: parseFloat(avgCoinsPerCompletion.toFixed(3))
+    },
+    campaigns: campaignsWithAnalytics
+  };
+}
+
 // ============================================================================
 // EXPORTS
 // ============================================================================
@@ -429,5 +608,6 @@ module.exports = {
   getCampaignInfo,
   checkCampaignOwnership,
   validateDateRange,
-  getDateRangeIST
+  getDateRangeIST,
+  getUserCampaignsSummary
 };

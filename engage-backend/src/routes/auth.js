@@ -75,7 +75,7 @@ router.post('/signup', async (req, res, next) => {
     // Get client IP address
     const ipAddress = getClientIp(req);
 
-    // Insert user (unverified) with 20 welcome coins
+    // Insert user (unverified) with 20 welcome coins (deprecated field, kept for backward compatibility)
     const [result] = await db.query(
       `INSERT INTO users (username, username_lower, email, email_lower, password_hash, coins, is_admin, email_verified_at, ip_address)
        VALUES (?, ?, ?, ?, ?, 20, 0, NULL, ?)`,
@@ -87,6 +87,15 @@ router.post('/signup', async (req, res, next) => {
     // Generate and set public_id
     const publicId = generatePublicId('USR', userId);
     await db.query('UPDATE users SET public_id = ? WHERE id = ?', [publicId, userId]);
+
+    // Create wallet with 20 initial coins
+    await db.query(
+      `INSERT INTO wallets (user_id, available, locked, lifetime_earned)
+       VALUES (?, 20.000, 0.000, 20.000)`,
+      [userId]
+    );
+
+    console.log(`[Auth] Created new user ${userId} (${username}) with wallet balance: 20 coins`);
 
     // Check if user can receive OTP (throttle check)
     const canSend = await canResendOTP(userId);

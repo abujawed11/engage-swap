@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm run dev)",
-      "Bash(node scripts/seedAdmin.js)"
+      "Bash(node scripts/seedAdmin.js)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

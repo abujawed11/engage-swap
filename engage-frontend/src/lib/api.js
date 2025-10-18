@@ -172,6 +172,14 @@ export const analytics = {
     return apiCall(`/analytics/my-earnings${query}`, { method: "GET" });
   },
 
+  async getMyCampaignsSummary(days = 7) {
+    const params = new URLSearchParams();
+    params.append('days', days);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiCall(`/analytics/my-campaigns${query}`, { method: "GET" });
+  },
+
   async getCampaignAnalytics(campaignId, fromDate, toDate) {
     const params = new URLSearchParams();
     if (fromDate) params.append('from', fromDate);

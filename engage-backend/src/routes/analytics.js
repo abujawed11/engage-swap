@@ -13,6 +13,7 @@ const {
   getCampaignInfo,
   checkCampaignOwnership,
   validateDateRange,
+  getUserCampaignsSummary,
 } = require('../services/campaignAnalytics');
 const { getCurrentDateIST } = require('../utils/timezone');
 const authRequired = require('../middleware/authRequired');
@@ -231,6 +232,79 @@ router.get('/my-earnings', authRequired, async (req, res, next) => {
         quiz_score: row.quiz_score ? parseFloat(row.quiz_score) : null,
         quiz_passed: Boolean(row.quiz_passed),
       })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /analytics/my-campaigns
+ * Get summary analytics for all campaigns owned by the authenticated user
+ * Query params: days (7, 14, or 30, default: 7)
+ * Access: Authenticated users only
+ */
+router.get('/my-campaigns', authRequired, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const days = parseInt(req.query.days, 10) || 7;
+
+    // Validate days parameter
+    if (![7, 14, 30].includes(days)) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_DAYS',
+          message: 'Days parameter must be 7, 14, or 30',
+        },
+      });
+    }
+
+    // Calculate date range in IST using MySQL's timezone (consistent with visits table)
+    const db = require('../db');
+    const [[{ current_date_ist }]] = await db.query(
+      `SELECT DATE_FORMAT(CONVERT_TZ(NOW(), '+00:00', '+05:30'), '%Y-%m-%d') as current_date_ist`
+    );
+
+    // This will now be a string in YYYY-MM-DD format
+    const toDateIST = current_date_ist;
+
+    // Calculate from date by subtracting days (staying in IST)
+    const [year, month, day] = toDateIST.split('-').map(Number);
+    const toDate = new Date(year, month - 1, day);
+    toDate.setDate(toDate.getDate() - (days - 1));
+    const fromDateIST = toDate.toISOString().split('T')[0];
+
+    console.log('[Analytics] My Campaigns Request:', {
+      userId,
+      days,
+      current_date_ist,
+      toDateIST,
+      fromDateIST,
+      dateCalculation: { year, month, day }
+    });
+
+    // Get summary analytics
+    const data = await getUserCampaignsSummary(userId, fromDateIST, toDateIST);
+
+    console.log('[Analytics] Summary Data:', {
+      summary: data.summary,
+      campaignCount: data.campaigns.length,
+      campaigns: data.campaigns.map(c => ({
+        id: c.id,
+        title: c.title,
+        visits: c.visits,
+        completions: c.completions
+      }))
+    });
+
+    res.status(200).json({
+      date_range: {
+        from: fromDateIST,
+        to: toDateIST,
+        days: days,
+        timezone: 'Asia/Kolkata (IST)',
+      },
+      ...data,
     });
   } catch (err) {
     next(err);
