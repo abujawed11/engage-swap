@@ -165,48 +165,79 @@ router.get('/my-earnings', authRequired, async (req, res, next) => {
     const totalEarned = parseFloat(summary.total_earned) || 0;
 
     // Get recent visit history (including failed attempts and consolation rewards)
+    // Use UNION to combine quiz attempts AND standalone consolation rewards (when quiz wasn't submitted)
     const [recentVisits] = await db.query(
-      `SELECT
-        qa.id as quiz_attempt_id,
-        v.id as visit_id,
-        qa.visit_token as visit_token,
-        COALESCE(v.visited_at, cr.created_at, qa.submitted_at) as visited_at,
-        COALESCE(v.coins_earned, cr.amount, 0) as coins_earned,
-        CASE WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN 1 ELSE 0 END as is_consolation,
-        COALESCE(v.campaign_id, cr.campaign_id, qa.campaign_id) as campaign_id,
-        c.title as campaign_title,
-        c.url as campaign_url,
-        qa.passed as quiz_passed,
-        qa.correct_count,
-        qa.total_count,
-        qa.reward_amount,
-        CASE
-          WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN TRUE
-          WHEN qa.passed = 1 THEN TRUE
-          ELSE FALSE
-        END as is_rewarded,
-        CASE
-          WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN TRUE
-          WHEN qa.passed = 1 THEN TRUE
-          ELSE FALSE
-        END as is_completed,
-        CASE
-          WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN 'bonus'
-          WHEN qa.passed = 1 THEN 'quiz'
-          ELSE 'not_eligible'
-        END as reward_type,
-        CASE
-          WHEN qa.total_count > 0 THEN ROUND((qa.correct_count / qa.total_count) * 100, 1)
-          ELSE NULL
-        END as quiz_score
-       FROM quiz_attempts qa
-       LEFT JOIN visits v ON qa.visit_token = v.visit_token COLLATE utf8mb4_unicode_ci
-       LEFT JOIN consolation_rewards cr ON qa.visit_token = cr.visit_token COLLATE utf8mb4_unicode_ci
-       LEFT JOIN campaigns c ON COALESCE(v.campaign_id, cr.campaign_id, qa.campaign_id) = c.id
-       WHERE qa.user_id = ?
-       ORDER BY COALESCE(v.visited_at, cr.created_at, qa.submitted_at) DESC
-       LIMIT ?`,
-      [userId, limit]
+      `(
+        SELECT
+          qa.id as quiz_attempt_id,
+          v.id as visit_id,
+          CAST(qa.visit_token AS CHAR(255)) COLLATE utf8mb4_unicode_ci as visit_token,
+          COALESCE(v.visited_at, cr.created_at, qa.submitted_at) as visited_at,
+          COALESCE(v.coins_earned, cr.amount, 0) as coins_earned,
+          CASE WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN 1 ELSE 0 END as is_consolation,
+          COALESCE(v.campaign_id, cr.campaign_id, qa.campaign_id) as campaign_id,
+          CAST(c.title AS CHAR(255)) COLLATE utf8mb4_unicode_ci as campaign_title,
+          CAST(c.url AS CHAR(500)) COLLATE utf8mb4_unicode_ci as campaign_url,
+          qa.passed as quiz_passed,
+          qa.correct_count,
+          qa.total_count,
+          qa.reward_amount,
+          CASE
+            WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN TRUE
+            WHEN qa.passed = 1 THEN TRUE
+            ELSE FALSE
+          END as is_rewarded,
+          CASE
+            WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN TRUE
+            WHEN qa.passed = 1 THEN TRUE
+            ELSE FALSE
+          END as is_completed,
+          CASE
+            WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN 'bonus'
+            WHEN qa.passed = 1 THEN 'quiz'
+            ELSE 'not_eligible'
+          END as reward_type,
+          CASE
+            WHEN qa.total_count > 0 THEN ROUND((qa.correct_count / qa.total_count) * 100, 1)
+            ELSE NULL
+          END as quiz_score
+        FROM quiz_attempts qa
+        LEFT JOIN visits v ON qa.visit_token = v.visit_token COLLATE utf8mb4_unicode_ci
+        LEFT JOIN consolation_rewards cr ON qa.visit_token = cr.visit_token COLLATE utf8mb4_unicode_ci
+        LEFT JOIN campaigns c ON COALESCE(v.campaign_id, cr.campaign_id, qa.campaign_id) = c.id
+        WHERE qa.user_id = ?
+      )
+      UNION
+      (
+        SELECT
+          NULL as quiz_attempt_id,
+          NULL as visit_id,
+          CAST(cr.visit_token AS CHAR(255)) COLLATE utf8mb4_unicode_ci as visit_token,
+          cr.created_at as visited_at,
+          cr.amount as coins_earned,
+          1 as is_consolation,
+          cr.campaign_id as campaign_id,
+          CAST(c.title AS CHAR(255)) COLLATE utf8mb4_unicode_ci as campaign_title,
+          CAST(c.url AS CHAR(500)) COLLATE utf8mb4_unicode_ci as campaign_url,
+          NULL as quiz_passed,
+          NULL as correct_count,
+          NULL as total_count,
+          NULL as reward_amount,
+          TRUE as is_rewarded,
+          TRUE as is_completed,
+          'bonus' as reward_type,
+          NULL as quiz_score
+        FROM consolation_rewards cr
+        LEFT JOIN campaigns c ON cr.campaign_id = c.id
+        WHERE cr.user_id = ?
+          AND NOT EXISTS (
+            SELECT 1 FROM quiz_attempts qa
+            WHERE qa.visit_token = cr.visit_token COLLATE utf8mb4_unicode_ci
+          )
+      )
+      ORDER BY visited_at DESC
+      LIMIT ?`,
+      [userId, userId, limit]
     );
 
     res.status(200).json({
@@ -217,7 +248,7 @@ router.get('/my-earnings', authRequired, async (req, res, next) => {
         avg_per_visit: successfulVisits > 0 ? totalEarned / successfulVisits : 0,
       },
       recent_visits: recentVisits.map(row => ({
-        id: `qa_${row.quiz_attempt_id}`, // Use quiz_attempt_id as unique identifier
+        id: row.quiz_attempt_id ? `qa_${row.quiz_attempt_id}` : `cr_${row.visit_token}`, // Unique identifier
         quiz_attempt_id: row.quiz_attempt_id,
         visit_id: row.visit_id,
         visit_token: row.visit_token,
