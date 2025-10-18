@@ -7,14 +7,22 @@ const router = express.Router();
 /**
  * GET /me
  * Get current authenticated user profile
+ * Returns wallet balance (wallets.available) as coins - source of truth
  */
 router.get('/me', authRequired, async (req, res, next) => {
   try {
-    // Fetch user from database
+    // Fetch user from database with wallet balance
     const [users] = await db.query(
-      `SELECT id, public_id, username, email, coins, is_admin
-       FROM users
-       WHERE id = ?
+      `SELECT
+        u.id,
+        u.public_id,
+        u.username,
+        u.email,
+        u.is_admin,
+        COALESCE(w.available, 0.000) as coins
+       FROM users u
+       LEFT JOIN wallets w ON u.id = w.user_id
+       WHERE u.id = ?
        LIMIT 1`,
       [req.user.id]
     );
@@ -35,7 +43,7 @@ router.get('/me', authRequired, async (req, res, next) => {
       public_id: user.public_id,
       username: user.username,
       email: user.email,
-      coins: user.coins,
+      coins: parseFloat(user.coins), // wallets.available is now the source of truth
       is_admin: user.is_admin === 1,
     });
   } catch (err) {

@@ -302,7 +302,8 @@ router.delete('/users/:id', async (req, res, next) => {
 
 /**
  * POST /admin/users/:id/adjust-coins
- * Adjust user's coin balance (add or subtract)
+ * DEPRECATED: Redirects to wallet system
+ * Use /admin/wallet/:userId/adjust instead
  */
 router.post('/users/:id/adjust-coins', async (req, res, next) => {
   try {
@@ -321,41 +322,68 @@ router.post('/users/:id/adjust-coins', async (req, res, next) => {
       });
     }
 
-    // Get current balance
-    const [users] = await db.query('SELECT coins FROM users WHERE id = ?', [userId]);
-
+    // Check if user exists
+    const [users] = await db.query('SELECT id, username FROM users WHERE id = ?', [userId]);
     if (users.length === 0) {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'User not found' },
       });
     }
 
-    const currentBalance = parseFloat(users[0].coins);
-    const newBalance = currentBalance + amount;
+    // Determine type based on amount sign
+    const type = amount >= 0 ? 'credit' : 'debit';
+    const absoluteAmount = Math.abs(amount);
 
-    // Prevent negative balance
-    if (newBalance < 0) {
+    // Create wallet transaction
+    const txnType = type === 'credit' ? wallet.TXN_TYPE.ADMIN_CREDIT : wallet.TXN_TYPE.ADMIN_DEBIT;
+    const sign = type === 'credit' ? wallet.TXN_SIGN.PLUS : wallet.TXN_SIGN.MINUS;
+
+    const referenceId = wallet.generateReferenceId(
+      'admin_adjust',
+      userId,
+      `${req.user.id}_${Date.now()}`
+    );
+
+    const transaction = await wallet.createTransaction({
+      userId,
+      type: txnType,
+      sign,
+      amount: absoluteAmount,
+      source: 'admin_adjustment_legacy',
+      referenceId,
+      metadata: {
+        admin_id: req.user.id,
+        admin_username: req.user.username,
+        reason: reason.trim(),
+        adjustment_type: type,
+        legacy_endpoint: true,
+      },
+      actorType: wallet.ACTOR_TYPE.ADMIN,
+      actorId: req.user.id,
+    });
+
+    // Get updated balance
+    const balance = await wallet.getWalletBalance(userId);
+
+    console.log(`[Admin] User ${userId} (${users[0].username}) wallet ${type} of ${absoluteAmount} by admin ${req.user.id}. Reason: ${reason} (via legacy endpoint)`);
+
+    // Return in old format for backwards compatibility
+    res.json({
+      success: true,
+      old_balance: null, // Not tracked in new system
+      new_balance: parseFloat(balance.available),
+      adjustment: amount,
+      _note: 'This endpoint is deprecated. Use /admin/wallet/:userId/adjust instead.',
+    });
+  } catch (err) {
+    if (err.message === 'Insufficient funds') {
       return res.status(400).json({
         error: {
-          code: 'INVALID_AMOUNT',
-          message: 'Adjustment would result in negative balance',
+          code: 'INSUFFICIENT_FUNDS',
+          message: 'User does not have sufficient funds for this debit',
         },
       });
     }
-
-    // Update balance
-    await db.query('UPDATE users SET coins = ? WHERE id = ?', [newBalance, userId]);
-
-    // Log the adjustment (you might want to create an admin_actions table for this)
-    console.log(`[Admin] User ${userId} coins adjusted: ${amount} (Reason: ${reason}) by admin ${req.user.id}`);
-
-    res.json({
-      success: true,
-      old_balance: currentBalance,
-      new_balance: newBalance,
-      adjustment: amount,
-    });
-  } catch (err) {
     next(err);
   }
 });
