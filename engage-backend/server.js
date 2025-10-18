@@ -16,6 +16,7 @@ const analyticsRouter = require('./src/routes/analytics');
 const adminRouter = require('./src/routes/admin');
 const walletRouter = require('./src/routes/wallet');
 const marketRouter = require('./src/routes/market');
+const validatorRouter = require('./src/routes/validator');
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/analytics', authRequired, analyticsRouter);
 app.use('/wallet', authRequired, walletRouter);
 app.use('/admin', authRequired, adminRouter);
 app.use('/market', marketRouter); // Public catalog browsing, auth required for purchase
+app.use('/validator', validatorRouter); // URL validation - rate limited, optional auth
 
 // ─── Error Handlers ───
 app.use(notFoundHandler);

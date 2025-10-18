@@ -16,6 +16,8 @@ import {
   DEFAULT_WATCH_DURATION,
   validateWatchDuration,
 } from "../lib/coins";
+import { useURLValidation } from "../hooks/useURLValidation";
+import { VALIDATION_STATE, getValidationIcon, getValidationStyles } from "../lib/urlValidator";
 
 const isValidUrl = (u) => {
   try {
@@ -79,6 +81,9 @@ export default function Promote() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState("deduction"); // "deduction" or "refund"
+
+  // URL validation hook - only validate when URL is changed
+  const urlValidation = useURLValidation(form.url, activeTab === "create" && form.url.length > 0);
 
   // Fetch campaigns on mount
   useEffect(() => {
@@ -173,6 +178,24 @@ export default function Promote() {
     // Basic validation
     if (!form.title.trim()) return setError("Title is required.");
     if (!isValidUrl(form.url)) return setError("Enter a valid URL starting with https://");
+
+    // Check URL validation status
+    if (urlValidation.isInvalid) {
+      return setError(`URL validation failed: ${urlValidation.result?.message || 'Invalid URL'}`);
+    }
+
+    if (urlValidation.state === VALIDATION_STATE.VERIFYING || urlValidation.isValidating) {
+      return setError("Please wait for URL validation to complete.");
+    }
+
+    if (urlValidation.state === VALIDATION_STATE.IDLE && form.url.trim()) {
+      return setError("Please wait for URL validation to complete.");
+    }
+
+    if (!urlValidation.isValid) {
+      return setError("URL must pass validation before creating campaign.");
+    }
+
     if (form.coins_per_visit < 1) return setError("Coins per visit must be at least 1.");
 
     const durationError = validateWatchDuration(form.watch_duration);
@@ -213,6 +236,7 @@ export default function Promote() {
         total_clicks: 20,
         questions: []
       });
+      urlValidation.reset();
       await fetchCampaigns();
 
       // Navigate to "Your Campaigns" tab to show the newly created campaign
@@ -332,7 +356,76 @@ export default function Promote() {
 
           <div>
             <Label htmlFor="url">Target URL</Label>
-            <Input id="url" name="url" value={form.url} onChange={onChange} placeholder="https://example.com" />
+            <div className="relative">
+              <Input
+                id="url"
+                name="url"
+                value={form.url}
+                onChange={onChange}
+                placeholder="https://example.com"
+                className={getValidationStyles(urlValidation.state)}
+              />
+              {urlValidation.state !== VALIDATION_STATE.IDLE && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xl">
+                  {getValidationIcon(urlValidation.state)}
+                </div>
+              )}
+            </div>
+
+            {/* Validation Feedback */}
+            {urlValidation.state === VALIDATION_STATE.VERIFYING && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-blue-700">
+                <div className="animate-spin">🔍</div>
+                <span>Verifying URL...</span>
+              </div>
+            )}
+
+            {urlValidation.isValid && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+                <span>✅</span>
+                <span className="font-medium">URL verified and accessible</span>
+              </div>
+            )}
+
+            {urlValidation.isInvalid && urlValidation.result && (
+              <div className="mt-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-lg">❌</span>
+                  <div className="flex-1">
+                    <p className="font-semibold">URL validation failed</p>
+                    <p className="mt-1">{urlValidation.result.message}</p>
+                    {urlValidation.result.rejectionReason && (
+                      <p className="mt-1 text-xs text-red-600 font-mono">
+                        Code: {urlValidation.result.rejectionReason}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {urlValidation.shouldRetry && urlValidation.result && (
+              <div className="mt-2 text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-lg">⚠️</span>
+                  <div className="flex-1">
+                    <p className="font-semibold">Unable to verify URL</p>
+                    <p className="mt-1">{urlValidation.result.message}</p>
+                    <button
+                      type="button"
+                      onClick={urlValidation.validateNow}
+                      className="mt-2 text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded"
+                    >
+                      Retry Validation
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <p className="mt-1 text-xs text-slate-500">
+              URL will be automatically validated for security and accessibility
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
