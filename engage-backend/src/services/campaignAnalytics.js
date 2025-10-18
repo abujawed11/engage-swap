@@ -131,27 +131,17 @@ async function getCampaignTotals(campaignId, fromDateIST, toDateIST) {
 
 /**
  * Compute totals from raw tables (fallback when daily table is empty)
+ * Uses quiz_attempts as primary source to count ALL attempts (pass and fail)
  */
 async function computeTotalsFromRaw(campaignId, fromDateIST, toDateIST) {
-  // Get visit metrics
-  const [visitStats] = await db.query(
-    `SELECT
-      COUNT(*) as total_visits,
-      COUNT(CASE WHEN qa.passed = 1 THEN 1 END) as completed_visits
-     FROM visits v
-     LEFT JOIN quiz_attempts qa ON v.visit_token = qa.visit_token
-     WHERE v.campaign_id = ?
-       AND DATE(CONVERT_TZ(v.visited_at, '+00:00', '+05:30')) >= ?
-       AND DATE(CONVERT_TZ(v.visited_at, '+00:00', '+05:30')) <= ?`,
-    [campaignId, fromDateIST, toDateIST]
-  );
-
-  // Get quiz metrics
+  // Get quiz metrics (includes visit counts and completion status)
   const [quizStats] = await db.query(
     `SELECT
-      COUNT(*) as total_attempts,
+      COUNT(*) as total_visits,
+      COUNT(CASE WHEN passed = 1 THEN 1 END) as completed_visits,
       SUM(correct_count) as total_correct,
-      SUM(total_count) as total_questions
+      SUM(total_count) as total_questions,
+      SUM(CASE WHEN passed = 1 THEN reward_amount ELSE 0 END) as coins_spent
      FROM quiz_attempts
      WHERE campaign_id = ?
        AND DATE(CONVERT_TZ(submitted_at, '+00:00', '+05:30')) >= ?
@@ -159,28 +149,13 @@ async function computeTotalsFromRaw(campaignId, fromDateIST, toDateIST) {
     [campaignId, fromDateIST, toDateIST]
   );
 
-  // Get coins spent
-  const [coinStats] = await db.query(
-    `SELECT
-      SUM(amount) as total_coins_spent
-     FROM wallet_transactions
-     WHERE campaign_id = ?
-       AND type = 'SPENT'
-       AND status = 'SUCCESS'
-       AND DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) >= ?
-       AND DATE(CONVERT_TZ(created_at, '+00:00', '+05:30')) <= ?`,
-    [campaignId, fromDateIST, toDateIST]
-  );
-
-  const visits = visitStats[0] || {};
   const quiz = quizStats[0] || {};
-  const coins = coinStats[0] || {};
 
-  const totalVisits = parseInt(visits.total_visits) || 0;
-  const completedVisits = parseInt(visits.completed_visits) || 0;
+  const totalVisits = parseInt(quiz.total_visits) || 0;
+  const completedVisits = parseInt(quiz.completed_visits) || 0;
   const totalCorrect = parseInt(quiz.total_correct) || 0;
   const totalQuestions = parseInt(quiz.total_questions) || 0;
-  const coinsSpent = parseFloat(coins.total_coins_spent) || 0;
+  const coinsSpent = parseFloat(quiz.coins_spent) || 0;
 
   return {
     total_visits: totalVisits,
@@ -274,19 +249,19 @@ async function getCampaignDailySeries(campaignId, fromDateIST, toDateIST) {
 
 /**
  * Compute daily series from raw tables (fallback)
+ * Uses quiz_attempts as primary source to count ALL attempts (pass and fail)
  */
 async function computeDailySeriesFromRaw(campaignId, fromDateIST, toDateIST) {
   const [dailyData] = await db.query(
     `SELECT
-      DATE(CONVERT_TZ(v.visited_at, '+00:00', '+05:30')) as date_ist,
+      DATE(CONVERT_TZ(qa.submitted_at, '+00:00', '+05:30')) as date_ist,
       COUNT(*) as total_visits,
       COUNT(CASE WHEN qa.passed = 1 THEN 1 END) as completed_visits,
       SUM(CASE WHEN qa.passed = 1 THEN qa.reward_amount ELSE 0 END) as coins_spent
-     FROM visits v
-     LEFT JOIN quiz_attempts qa ON v.visit_token = qa.visit_token
-     WHERE v.campaign_id = ?
-       AND DATE(CONVERT_TZ(v.visited_at, '+00:00', '+05:30')) >= ?
-       AND DATE(CONVERT_TZ(v.visited_at, '+00:00', '+05:30')) <= ?
+     FROM quiz_attempts qa
+     WHERE qa.campaign_id = ?
+       AND DATE(CONVERT_TZ(qa.submitted_at, '+00:00', '+05:30')) >= ?
+       AND DATE(CONVERT_TZ(qa.submitted_at, '+00:00', '+05:30')) <= ?
      GROUP BY date_ist
      ORDER BY date_ist ASC`,
     [campaignId, fromDateIST, toDateIST]
@@ -503,21 +478,21 @@ async function getUserCampaignsSummary(userId, fromDateIST, toDateIST) {
       });
     });
   } else {
-    // Fallback: compute from raw tables
-    console.log('[CampaignAnalytics] Falling back to raw tables query');
+    // Fallback: compute from raw tables using quiz_attempts as primary source
+    // This ensures ALL attempts (pass and fail) are counted for accurate completion rates
+    console.log('[CampaignAnalytics] Falling back to raw tables query (using quiz_attempts)');
     const [rawAnalyticsData] = await db.query(
       `SELECT
-        v.campaign_id,
+        qa.campaign_id,
         COUNT(*) as total_visits,
         COUNT(CASE WHEN qa.passed = 1 THEN 1 END) as completed_visits,
         SUM(CASE WHEN qa.passed = 1 THEN qa.reward_amount ELSE 0 END) as coins_spent,
         AVG(CASE WHEN qa.total_count > 0 THEN (qa.correct_count / qa.total_count) * 100 ELSE 0 END) as avg_quiz_accuracy
-       FROM visits v
-       LEFT JOIN quiz_attempts qa ON v.visit_token = qa.visit_token
-       WHERE v.campaign_id IN (?)
-         AND DATE(CONVERT_TZ(v.visited_at, '+00:00', '+05:30')) >= ?
-         AND DATE(CONVERT_TZ(v.visited_at, '+00:00', '+05:30')) <= ?
-       GROUP BY v.campaign_id`,
+       FROM quiz_attempts qa
+       WHERE qa.campaign_id IN (?)
+         AND DATE(CONVERT_TZ(qa.submitted_at, '+00:00', '+05:30')) >= ?
+         AND DATE(CONVERT_TZ(qa.submitted_at, '+00:00', '+05:30')) <= ?
+       GROUP BY qa.campaign_id`,
       [campaignIds, fromDateIST, toDateIST]
     );
 
