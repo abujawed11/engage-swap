@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Button from "./ui/Button";
 import Input from "./ui/Input";
 import { quiz as quizAPI } from "../lib/api";
@@ -14,10 +14,14 @@ export default function QuizModal({ campaignId, verificationToken, onComplete, o
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const fetchAttemptedRef = useRef(false); // Use ref instead of state to avoid re-renders
 
-  // Fetch quiz questions on mount
+  // Fetch quiz questions on mount (only once)
   useEffect(() => {
-    fetchQuiz();
+    if (!fetchAttemptedRef.current) {
+      fetchAttemptedRef.current = true; // Set IMMEDIATELY to prevent duplicate calls
+      fetchQuiz();
+    }
   }, [campaignId]);
 
   const fetchQuiz = async () => {
@@ -48,6 +52,18 @@ export default function QuizModal({ campaignId, verificationToken, onComplete, o
       setAnswers(initialAnswers);
     } catch (error) {
       console.error('Error fetching quiz:', error);
+
+      // If we get a 403 Forbidden or campaign unavailable error, close the quiz
+      // The user has already received consolation reward on the backend
+      if (error.message && (error.message.includes('403') || error.message.includes('Forbidden') ||
+          error.message.includes('unavailable') || error.message.includes('paused') ||
+          error.message.includes('deleted'))) {
+        // Just close the modal silently - consolation was already handled
+        setLoading(false);
+        onCancel();
+        return;
+      }
+
       onError(error.message || 'Failed to load quiz');
     } finally {
       setLoading(false);
