@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
@@ -65,6 +66,7 @@ const calculateTotalBudgetForCampaign = (campaign) => {
 
 export default function Promote() {
   const { user, setUser } = useApp();
+  const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState([]);
   const [activeTab, setActiveTab] = useState("create"); // "create" or "campaigns"
   const [form, setForm] = useState({
@@ -602,7 +604,7 @@ export default function Promote() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex items-start gap-2 shrink-0">
+                    <div className="flex items-start gap-2 shrink-0 flex-wrap">
                       {c.is_finished ? (
                         <Button
                           onClick={() => handleReAdd(c)}

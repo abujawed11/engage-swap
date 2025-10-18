@@ -161,3 +161,58 @@ export const quiz = {
     });
   },
 };
+
+// ─── Analytics API ───
+export const analytics = {
+  async getMyEarnings(limit) {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiCall(`/analytics/my-earnings${query}`, { method: "GET" });
+  },
+
+  async getCampaignAnalytics(campaignId, fromDate, toDate) {
+    const params = new URLSearchParams();
+    if (fromDate) params.append('from', fromDate);
+    if (toDate) params.append('to', toDate);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiCall(`/analytics/campaigns/${campaignId}${query}`, { method: "GET" });
+  },
+
+  async exportCampaignAnalytics(campaignId, fromDate, toDate) {
+    const params = new URLSearchParams();
+    if (fromDate) params.append('from', fromDate);
+    if (toDate) params.append('to', toDate);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const url = `${BASE_URL}/analytics/campaigns/${campaignId}/export${query}`;
+    const token = getToken();
+
+    const response = await fetch(url, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Export failed');
+    }
+
+    // Get the filename from Content-Disposition header
+    const disposition = response.headers.get('Content-Disposition');
+    const filename = disposition?.match(/filename="(.+)"/)?.[1] || `campaign_${campaignId}_analytics.csv`;
+
+    // Create blob and download
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+  },
+};

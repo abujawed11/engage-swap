@@ -18,6 +18,66 @@ USE `engage_swap`;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
+-- Table structure for table `campaign_analytics_daily`
+--
+
+DROP TABLE IF EXISTS `campaign_analytics_daily`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `campaign_analytics_daily` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `campaign_id` bigint NOT NULL,
+  `date_ist` date NOT NULL COMMENT 'Calendar date in Asia/Kolkata (IST) timezone',
+  `total_visits` int unsigned NOT NULL DEFAULT '0' COMMENT 'Total visits started',
+  `completed_visits` int unsigned NOT NULL DEFAULT '0' COMMENT 'Visits that completed timer + quiz',
+  `abandoned_visits` int unsigned NOT NULL DEFAULT '0' COMMENT 'Visits that were abandoned',
+  `total_watch_time_sec` bigint unsigned NOT NULL DEFAULT '0' COMMENT 'Sum of all watch durations',
+  `avg_watch_time_sec` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT 'Average watch time',
+  `total_quiz_attempts` int unsigned NOT NULL DEFAULT '0' COMMENT 'Total quiz submissions',
+  `total_correct_answers` int unsigned NOT NULL DEFAULT '0' COMMENT 'Sum of correct answers',
+  `total_quiz_questions` int unsigned NOT NULL DEFAULT '0' COMMENT 'Sum of total questions (usually 5 per attempt)',
+  `avg_quiz_accuracy` decimal(5,2) NOT NULL DEFAULT '0.00' COMMENT 'Average quiz accuracy percentage',
+  `coins_spent` decimal(20,3) NOT NULL DEFAULT '0.000' COMMENT 'Total coins spent on payouts',
+  `avg_coins_per_completion` decimal(20,3) NOT NULL DEFAULT '0.000' COMMENT 'Effective CPA',
+  `visits_desktop` int unsigned NOT NULL DEFAULT '0',
+  `visits_mobile` int unsigned NOT NULL DEFAULT '0',
+  `visits_unknown` int unsigned NOT NULL DEFAULT '0',
+  `last_computed_at` timestamp NULL DEFAULT NULL COMMENT 'When this row was last computed/updated',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_campaign_date` (`campaign_id`,`date_ist`),
+  KEY `idx_campaign_id` (`campaign_id`),
+  KEY `idx_date_ist` (`date_ist`),
+  KEY `idx_campaign_date_range` (`campaign_id`,`date_ist`),
+  CONSTRAINT `fk_analytics_campaign` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Daily aggregated analytics for campaigns (IST timezone)';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Temporary view structure for view `campaign_analytics_realtime`
+--
+
+DROP TABLE IF EXISTS `campaign_analytics_realtime`;
+/*!50001 DROP VIEW IF EXISTS `campaign_analytics_realtime`*/;
+SET @saved_cs_client     = @@character_set_client;
+/*!50503 SET character_set_client = utf8mb4 */;
+/*!50001 CREATE VIEW `campaign_analytics_realtime` AS SELECT 
+ 1 AS `campaign_id`,
+ 1 AS `title`,
+ 1 AS `owner_id`,
+ 1 AS `total_visits`,
+ 1 AS `completed_visits`,
+ 1 AS `completion_rate_pct`,
+ 1 AS `total_quiz_attempts`,
+ 1 AS `avg_quiz_accuracy_pct`,
+ 1 AS `coins_per_visit`,
+ 1 AS `total_clicks`,
+ 1 AS `clicks_served`,
+ 1 AS `clicks_remaining`*/;
+SET character_set_client = @saved_cs_client;
+
+--
 -- Table structure for table `campaign_enforcement_logs`
 --
 
@@ -44,7 +104,7 @@ CREATE TABLE `campaign_enforcement_logs` (
   KEY `idx_user_campaign_date` (`user_id`,`campaign_id`,`created_at`),
   CONSTRAINT `campaign_enforcement_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `campaign_enforcement_logs_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=55 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=72 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -89,7 +149,7 @@ CREATE TABLE `campaign_questions` (
   CONSTRAINT `chk_input_type` CHECK ((`input_type` in (_cp850'dropdown',_cp850'mcq',_cp850'free_text'))),
   CONSTRAINT `chk_question_id` CHECK (((`question_id` >= 1) and (`question_id` <= 20))),
   CONSTRAINT `chk_question_order` CHECK (((`question_order` >= 1) and (`question_order` <= 5)))
-) ENGINE=InnoDB AUTO_INCREMENT=276 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=301 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -115,7 +175,7 @@ CREATE TABLE `campaign_rotation_tracking` (
   KEY `idx_user_last_served` (`user_id`,`last_served_at`),
   CONSTRAINT `campaign_rotation_tracking_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `campaign_rotation_tracking_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=767 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1563 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -148,7 +208,7 @@ CREATE TABLE `campaigns` (
   CONSTRAINT `chk_coins_per_visit` CHECK ((`coins_per_visit` >= 0.001)),
   CONSTRAINT `chk_total_clicks` CHECK ((`total_clicks` >= 1)),
   CONSTRAINT `chk_watch_duration` CHECK (((`watch_duration` >= 30) and (`watch_duration` <= 120) and (((`watch_duration` - 30) % 15) = 0)))
-) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=69 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -281,11 +341,87 @@ CREATE TABLE `quiz_attempts` (
   KEY `idx_campaign` (`campaign_id`),
   KEY `idx_user` (`user_id`),
   KEY `idx_token` (`visit_token`),
+  KEY `idx_campaign_submitted_at` (`campaign_id`,`submitted_at`),
+  KEY `idx_user_submitted_at` (`user_id`,`submitted_at`),
   CONSTRAINT `quiz_attempts_ibfk_1` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE,
   CONSTRAINT `quiz_attempts_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chk_correct_count` CHECK (((`correct_count` >= 0) and (`correct_count` <= 5))),
   CONSTRAINT `chk_multiplier` CHECK (((`multiplier` >= 0.00) and (`multiplier` <= 1.00)))
-) ENGINE=InnoDB AUTO_INCREMENT=98 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=116 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `url_validation_logs`
+--
+
+DROP TABLE IF EXISTS `url_validation_logs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `url_validation_logs` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `correlation_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID for tracking the validation request',
+  `user_id` bigint DEFAULT NULL COMMENT 'User who submitted the URL (NULL if anonymous)',
+  `url` text COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'The URL that was validated',
+  `verdict` enum('VALID','INVALID','RETRY') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Validation outcome',
+  `rejection_reason` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Rejection reason code if INVALID',
+  `validation_time_ms` int unsigned DEFAULT NULL COMMENT 'Time taken to validate in milliseconds',
+  `http_status_code` int DEFAULT NULL COMMENT 'HTTP status code received during probing',
+  `content_type` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Content-Type header from the response',
+  `redirect_chain` json DEFAULT NULL COMMENT 'Array of redirect URLs if followed',
+  `failed_rules` json DEFAULT NULL COMMENT 'Array of rule keys that failed',
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'IP address of the requester',
+  `user_agent` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'User agent string',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_correlation_id` (`correlation_id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_verdict` (`verdict`),
+  KEY `idx_created_at` (`created_at`),
+  KEY `idx_user_verdict` (`user_id`,`verdict`),
+  CONSTRAINT `fk_url_validation_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=33 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Audit log for all URL validation attempts';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `url_validator_config`
+--
+
+DROP TABLE IF EXISTS `url_validator_config`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `url_validator_config` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `rule_key` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Unique key for the validation rule',
+  `enabled` tinyint(1) NOT NULL DEFAULT '1' COMMENT '1 = enabled, 0 = disabled',
+  `description` text COLLATE utf8mb4_unicode_ci COMMENT 'Human-readable description of what this rule does',
+  `metadata` json DEFAULT NULL COMMENT 'Additional configuration data for the rule',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_rule_key` (`rule_key`),
+  KEY `idx_enabled` (`enabled`)
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Configuration table for URL validation rules';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `url_validator_rate_limits`
+--
+
+DROP TABLE IF EXISTS `url_validator_rate_limits`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `url_validator_rate_limits` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `identifier` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'user_id or IP address',
+  `identifier_type` enum('USER','IP') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `request_count` int unsigned NOT NULL DEFAULT '1',
+  `window_start` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_identifier_type_window` (`identifier`,`identifier_type`,`window_start`),
+  KEY `idx_window_start` (`window_start`)
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Rate limiting tracking for URL validator API';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -314,7 +450,33 @@ CREATE TABLE `user_campaign_activity` (
   KEY `idx_active_session` (`active_session_token`),
   CONSTRAINT `user_campaign_activity_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `user_campaign_activity_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=79 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=96 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `user_campaign_daily_caps`
+--
+
+DROP TABLE IF EXISTS `user_campaign_daily_caps`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `user_campaign_daily_caps` (
+  `user_id` bigint NOT NULL,
+  `campaign_id` bigint NOT NULL,
+  `date_key` date NOT NULL COMMENT 'Local date in Asia/Kolkata (IST) timezone',
+  `attempts` int NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`,`campaign_id`,`date_key`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_campaign_id` (`campaign_id`),
+  KEY `idx_date_key` (`date_key`),
+  KEY `idx_user_date` (`user_id`,`date_key`),
+  KEY `idx_date_key_cleanup` (`date_key`),
+  CONSTRAINT `user_campaign_daily_caps_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `user_campaign_daily_caps_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_attempts_non_negative` CHECK ((`attempts` >= 0))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Daily attempt counter that resets at midnight IST (calendar-day based)';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -332,7 +494,7 @@ CREATE TABLE `users` (
   `email` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email_lower` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL,
   `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `coins` decimal(20,3) NOT NULL DEFAULT '0.000',
+  `coins` decimal(20,3) NOT NULL DEFAULT '0.000' COMMENT 'DEPRECATED: Use wallets.available instead. Kept for backwards compatibility only.',
   `is_admin` tinyint(1) NOT NULL DEFAULT '0',
   `is_disabled` tinyint(1) NOT NULL DEFAULT '0',
   `disabled_at` datetime DEFAULT NULL,
@@ -376,7 +538,7 @@ CREATE TABLE `visit_tokens` (
   KEY `visit_tokens_ibfk_2` (`campaign_id`),
   CONSTRAINT `visit_tokens_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `visit_tokens_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=150 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=169 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -405,10 +567,12 @@ CREATE TABLE `visits` (
   KEY `idx_campaign_date` (`campaign_id`,`visit_date`),
   KEY `idx_visit_token` (`visit_token`),
   KEY `idx_visits_consolation` (`is_consolation`,`user_id`,`visit_date`),
+  KEY `idx_campaign_visited_at` (`campaign_id`,`visited_at`),
+  KEY `idx_user_visited_at` (`user_id`,`visited_at`),
   CONSTRAINT `visits_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `visits_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE,
   CONSTRAINT `visits_ibfk_3` FOREIGN KEY (`campaign_owner_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=88 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=105 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -440,7 +604,7 @@ CREATE TABLE `wallet_audit_logs` (
   CONSTRAINT `wallet_audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `wallet_audit_logs_ibfk_2` FOREIGN KEY (`actor_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `wallet_audit_logs_ibfk_3` FOREIGN KEY (`txn_id`) REFERENCES `wallet_transactions` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -475,10 +639,12 @@ CREATE TABLE `wallet_transactions` (
   KEY `idx_txn_user_type` (`user_id`,`type`),
   KEY `idx_txn_user_status` (`user_id`,`status`),
   KEY `idx_txn_balance_after` (`balance_after`),
+  KEY `idx_campaign_created_at` (`campaign_id`,`created_at`),
+  KEY `idx_source_created_at` (`source`,`created_at`),
   CONSTRAINT `wallet_transactions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `wallet_transactions_ibfk_2` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE SET NULL,
   CONSTRAINT `chk_txn_amount` CHECK ((`amount` > 0))
-) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=47 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -506,8 +672,26 @@ CREATE TABLE `wallets` (
   CONSTRAINT `chk_wallet_lifetime_earned` CHECK ((`lifetime_earned` >= 0)),
   CONSTRAINT `chk_wallet_lifetime_spent` CHECK ((`lifetime_spent` >= 0)),
   CONSTRAINT `chk_wallet_locked` CHECK ((`locked` >= 0))
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Final view structure for view `campaign_analytics_realtime`
+--
+
+/*!50001 DROP VIEW IF EXISTS `campaign_analytics_realtime`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = cp850 */;
+/*!50001 SET character_set_results     = cp850 */;
+/*!50001 SET collation_connection      = cp850_general_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`engage_user`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `campaign_analytics_realtime` AS select `c`.`id` AS `campaign_id`,`c`.`title` AS `title`,`c`.`user_id` AS `owner_id`,count(distinct `v`.`id`) AS `total_visits`,sum((case when (`qa`.`passed` = 1) then 1 else 0 end)) AS `completed_visits`,(case when (count(distinct `v`.`id`) > 0) then round(((sum((case when (`qa`.`passed` = 1) then 1 else 0 end)) / count(distinct `v`.`id`)) * 100),2) else 0.00 end) AS `completion_rate_pct`,count(`qa`.`id`) AS `total_quiz_attempts`,(case when (count(`qa`.`id`) > 0) then round(avg(((`qa`.`correct_count` / `qa`.`total_count`) * 100)),2) else 0.00 end) AS `avg_quiz_accuracy_pct`,`c`.`coins_per_visit` AS `coins_per_visit`,`c`.`total_clicks` AS `total_clicks`,`c`.`clicks_served` AS `clicks_served`,(`c`.`total_clicks` - `c`.`clicks_served`) AS `clicks_remaining` from ((`campaigns` `c` left join `visits` `v` on((`c`.`id` = `v`.`campaign_id`))) left join `quiz_attempts` `qa` on((`v`.`visit_token` = `qa`.`visit_token`))) group by `c`.`id`,`c`.`title`,`c`.`user_id`,`c`.`coins_per_visit`,`c`.`total_clicks`,`c`.`clicks_served` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -518,4 +702,4 @@ CREATE TABLE `wallets` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-10-17 17:17:57
+-- Dump completed on 2025-10-18 16:01:34

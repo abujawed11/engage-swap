@@ -14,6 +14,8 @@ import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Analytics from "./pages/Analytics";
+import CampaignAnalyticsDetail from "./pages/CampaignAnalyticsDetail";
 import AuthGate from "./components/AuthGate";
 import { AppProvider } from "./lib/appState";
 
@@ -62,6 +64,14 @@ const router = createBrowserRouter([
       {
         path: "wallet",
         element: <AuthGate><Wallet /></AuthGate>
+      },
+      {
+        path: "analytics",
+        element: <AuthGate><Analytics /></AuthGate>
+      },
+      {
+        path: "analytics/campaign/:campaignId",
+        element: <AuthGate><CampaignAnalyticsDetail /></AuthGate>
       },
 
       // Admin routes

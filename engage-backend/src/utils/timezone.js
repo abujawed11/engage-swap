@@ -133,6 +133,26 @@ function isSameDayIST(date1, date2) {
   return getDateISTFromDate(date1) === getDateISTFromDate(date2);
 }
 
+/**
+ * Format a Date object or date string to YYYY-MM-DD in IST
+ * @param {Date|string} date - Date object or ISO string
+ * @returns {string} Date in YYYY-MM-DD format (IST timezone)
+ */
+function formatDateIST(date) {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return getDateISTFromDate(d);
+}
+
+/**
+ * Get IST date from UTC datetime string
+ * @param {string} utcDatetime - UTC datetime string
+ * @returns {string} Date in YYYY-MM-DD format (IST timezone)
+ */
+function getISTDateFromUTC(utcDatetime) {
+  const date = new Date(utcDatetime);
+  return getDateISTFromDate(date);
+}
+
 module.exports = {
   getCurrentDateIST,
   getDateISTFromDate,
@@ -140,4 +160,6 @@ module.exports = {
   getSecondsUntilMidnightIST,
   getTimeUntilMidnightISTFormatted,
   isSameDayIST,
+  formatDateIST,
+  getISTDateFromUTC,
 };

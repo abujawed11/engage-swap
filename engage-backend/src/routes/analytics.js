@@ -6,6 +6,16 @@ const {
   getSystemHealthMetrics,
   getCampaignExposureBalance,
 } = require('../utils/analytics');
+const {
+  getCampaignTotals,
+  getCampaignDailySeries,
+  getDeviceSplit,
+  getCampaignInfo,
+  checkCampaignOwnership,
+  validateDateRange,
+} = require('../services/campaignAnalytics');
+const { getCurrentDateIST } = require('../utils/timezone');
+const authRequired = require('../middleware/authRequired');
 
 const router = express.Router();
 
@@ -119,6 +129,310 @@ router.get('/me', async (req, res, next) => {
     const analytics = await getUserAnalytics(userId, limit);
 
     res.status(200).json(analytics);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /analytics/my-earnings
+ * Get earnings analytics for the authenticated user
+ * Shows visit history, earnings summary, etc.
+ */
+router.get('/my-earnings', authRequired, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const limit = parseInt(req.query.limit, 10) || 50;
+
+    const db = require('../db');
+
+    // Get summary stats (count ALL quiz attempts, not just visits)
+    const [summaryRows] = await db.query(
+      `SELECT
+        COUNT(DISTINCT qa.id) as total_visits,
+        COUNT(DISTINCT CASE WHEN qa.passed = 1 THEN qa.id END) as successful_visits,
+        COALESCE(SUM(CASE WHEN qa.passed = 1 THEN qa.reward_amount ELSE 0 END), 0) +
+        COALESCE((SELECT SUM(amount) FROM consolation_rewards WHERE user_id = ?), 0) as total_earned
+       FROM quiz_attempts qa
+       WHERE qa.user_id = ?`,
+      [userId, userId]
+    );
+
+    const summary = summaryRows[0] || {};
+    const totalVisits = parseInt(summary.total_visits) || 0;
+    const successfulVisits = parseInt(summary.successful_visits) || 0;
+    const totalEarned = parseFloat(summary.total_earned) || 0;
+
+    // Get recent visit history (including failed attempts and consolation rewards)
+    const [recentVisits] = await db.query(
+      `SELECT
+        qa.id as quiz_attempt_id,
+        v.id as visit_id,
+        qa.visit_token as visit_token,
+        COALESCE(v.visited_at, cr.created_at, qa.submitted_at) as visited_at,
+        COALESCE(v.coins_earned, cr.amount, 0) as coins_earned,
+        CASE WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN 1 ELSE 0 END as is_consolation,
+        COALESCE(v.campaign_id, cr.campaign_id, qa.campaign_id) as campaign_id,
+        c.title as campaign_title,
+        c.url as campaign_url,
+        qa.passed as quiz_passed,
+        qa.correct_count,
+        qa.total_count,
+        qa.reward_amount,
+        CASE
+          WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN TRUE
+          WHEN qa.passed = 1 THEN TRUE
+          ELSE FALSE
+        END as is_rewarded,
+        CASE
+          WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN TRUE
+          WHEN qa.passed = 1 THEN TRUE
+          ELSE FALSE
+        END as is_completed,
+        CASE
+          WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN 'bonus'
+          WHEN qa.passed = 1 THEN 'quiz'
+          ELSE 'not_eligible'
+        END as reward_type,
+        CASE
+          WHEN qa.total_count > 0 THEN ROUND((qa.correct_count / qa.total_count) * 100, 1)
+          ELSE NULL
+        END as quiz_score
+       FROM quiz_attempts qa
+       LEFT JOIN visits v ON qa.visit_token = v.visit_token COLLATE utf8mb4_unicode_ci
+       LEFT JOIN consolation_rewards cr ON qa.visit_token = cr.visit_token COLLATE utf8mb4_unicode_ci
+       LEFT JOIN campaigns c ON COALESCE(v.campaign_id, cr.campaign_id, qa.campaign_id) = c.id
+       WHERE qa.user_id = ?
+       ORDER BY COALESCE(v.visited_at, cr.created_at, qa.submitted_at) DESC
+       LIMIT ?`,
+      [userId, limit]
+    );
+
+    res.status(200).json({
+      summary: {
+        total_visits: totalVisits,
+        successful_visits: successfulVisits,
+        total_earned: totalEarned,
+        avg_per_visit: successfulVisits > 0 ? totalEarned / successfulVisits : 0,
+      },
+      recent_visits: recentVisits.map(row => ({
+        id: `qa_${row.quiz_attempt_id}`, // Use quiz_attempt_id as unique identifier
+        quiz_attempt_id: row.quiz_attempt_id,
+        visit_id: row.visit_id,
+        visit_token: row.visit_token,
+        visited_at: row.visited_at,
+        campaign_id: row.campaign_id,
+        campaign_title: row.campaign_title,
+        campaign_url: row.campaign_url,
+        coins_earned: parseFloat(row.coins_earned) || 0,
+        is_rewarded: Boolean(row.is_rewarded),
+        is_completed: Boolean(row.is_completed),
+        reward_type: row.reward_type,
+        quiz_score: row.quiz_score ? parseFloat(row.quiz_score) : null,
+        quiz_passed: Boolean(row.quiz_passed),
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /analytics/campaigns/:campaignId
+ * Get detailed analytics for a specific campaign
+ * Query params: from (YYYY-MM-DD), to (YYYY-MM-DD)
+ * Defaults to last 7 days in IST timezone
+ * Access: Campaign owner or admin only
+ */
+router.get('/campaigns/:campaignId', authRequired, async (req, res, next) => {
+  try {
+    const campaignId = parseInt(req.params.campaignId, 10);
+    const userId = req.user.id;
+    const isAdmin = req.user.is_admin;
+
+    if (!campaignId || campaignId < 1) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_CAMPAIGN_ID',
+          message: 'Invalid campaign ID',
+        },
+      });
+    }
+
+    // Check campaign ownership (unless admin)
+    if (!isAdmin) {
+      const isOwner = await checkCampaignOwnership(campaignId, userId);
+      if (!isOwner) {
+        return res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You do not have access to this campaign analytics',
+          },
+        });
+      }
+    }
+
+    // Get campaign info
+    const campaignInfo = await getCampaignInfo(campaignId);
+
+    // Parse date range (default to last 7 days in IST)
+    const currentDateIST = getCurrentDateIST();
+    const toDateIST = req.query.to || currentDateIST;
+
+    let fromDateIST;
+    if (req.query.from) {
+      fromDateIST = req.query.from;
+    } else {
+      // Default: 7 days ago from toDateIST
+      const toDate = new Date(toDateIST + 'T00:00:00');
+      toDate.setDate(toDate.getDate() - 6); // 7 days including today
+      fromDateIST = toDate.toISOString().split('T')[0];
+    }
+
+    // Validate date range
+    try {
+      validateDateRange(fromDateIST, toDateIST);
+    } catch (validationError) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_DATE_RANGE',
+          message: validationError.message,
+        },
+      });
+    }
+
+    // Fetch all analytics data in parallel
+    const [totals, dailySeries, deviceSplit] = await Promise.all([
+      getCampaignTotals(campaignId, fromDateIST, toDateIST),
+      getCampaignDailySeries(campaignId, fromDateIST, toDateIST),
+      getDeviceSplit(campaignId, fromDateIST, toDateIST),
+    ]);
+
+    res.status(200).json({
+      campaign: {
+        id: campaignInfo.id,
+        title: campaignInfo.title,
+        owner_id: campaignInfo.owner_id,
+        coins_per_visit: parseFloat(campaignInfo.coins_per_visit),
+        total_clicks: parseInt(campaignInfo.total_clicks),
+        clicks_served: parseInt(campaignInfo.clicks_served),
+        clicks_remaining: parseInt(campaignInfo.clicks_remaining),
+        is_paused: Boolean(campaignInfo.is_paused),
+        is_finished: Boolean(campaignInfo.is_finished),
+        created_at: campaignInfo.created_at,
+      },
+      date_range: {
+        from: fromDateIST,
+        to: toDateIST,
+        timezone: 'Asia/Kolkata (IST)',
+      },
+      totals: {
+        total_visits: totals.total_visits,
+        completed_visits: totals.completed_visits,
+        completion_rate: parseFloat(totals.completion_rate.toFixed(2)),
+        avg_watch_time_sec: parseFloat(totals.avg_watch_time_sec.toFixed(2)),
+        avg_quiz_accuracy: parseFloat(totals.avg_quiz_accuracy.toFixed(2)),
+        coins_spent: parseFloat(totals.coins_spent.toFixed(3)),
+        coins_per_completion: parseFloat(totals.coins_per_completion.toFixed(3)),
+      },
+      daily_series: dailySeries,
+      device_split: deviceSplit,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /analytics/campaigns/:campaignId/export
+ * Export campaign analytics as CSV
+ * Query params: from (YYYY-MM-DD), to (YYYY-MM-DD)
+ * Access: Campaign owner or admin only
+ */
+router.get('/campaigns/:campaignId/export', authRequired, async (req, res, next) => {
+  try {
+    const campaignId = parseInt(req.params.campaignId, 10);
+    const userId = req.user.id;
+    const isAdmin = req.user.is_admin;
+
+    if (!campaignId || campaignId < 1) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_CAMPAIGN_ID',
+          message: 'Invalid campaign ID',
+        },
+      });
+    }
+
+    // Check campaign ownership (unless admin)
+    if (!isAdmin) {
+      const isOwner = await checkCampaignOwnership(campaignId, userId);
+      if (!isOwner) {
+        return res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You do not have access to this campaign analytics',
+          },
+        });
+      }
+    }
+
+    // Get campaign info
+    const campaignInfo = await getCampaignInfo(campaignId);
+
+    // Parse date range (default to last 7 days in IST)
+    const currentDateIST = getCurrentDateIST();
+    const toDateIST = req.query.to || currentDateIST;
+
+    let fromDateIST;
+    if (req.query.from) {
+      fromDateIST = req.query.from;
+    } else {
+      const toDate = new Date(toDateIST + 'T00:00:00');
+      toDate.setDate(toDate.getDate() - 6);
+      fromDateIST = toDate.toISOString().split('T')[0];
+    }
+
+    // Validate date range
+    try {
+      validateDateRange(fromDateIST, toDateIST);
+    } catch (validationError) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_DATE_RANGE',
+          message: validationError.message,
+        },
+      });
+    }
+
+    // Get daily series data
+    const dailySeries = await getCampaignDailySeries(campaignId, fromDateIST, toDateIST);
+
+    // Generate CSV
+    const csvHeader = 'Date (IST),Visits,Completions,Completion Rate (%),Avg Watch Time (sec),Avg Quiz Accuracy (%),Coins Spent,Coins per Completion,Desktop,Mobile,Unknown\n';
+    const csvRows = dailySeries.map(row => {
+      return [
+        row.date,
+        row.visits,
+        row.completions,
+        row.completion_rate.toFixed(2),
+        row.avg_watch_time.toFixed(2),
+        row.avg_quiz_accuracy.toFixed(2),
+        row.coins_spent.toFixed(3),
+        row.coins_per_completion.toFixed(3),
+        row.device_split.desktop,
+        row.device_split.mobile,
+        row.device_split.unknown,
+      ].join(',');
+    }).join('\n');
+
+    const csv = csvHeader + csvRows;
+
+    // Set response headers for CSV download
+    const filename = `campaign_${campaignId}_analytics_${fromDateIST}_to_${toDateIST}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.status(200).send(csv);
   } catch (err) {
     next(err);
   }
