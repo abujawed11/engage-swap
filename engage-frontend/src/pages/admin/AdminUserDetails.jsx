@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { adminAPI } from '../../lib/adminApi';
@@ -7,6 +7,7 @@ import { formatCoinsValue } from '../../lib/coins';
 
 export default function AdminUserDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -108,6 +109,7 @@ export default function AdminUserDetails() {
       setDeleting(true);
       setError('');
       await adminAPI.deleteUser(id);
+      setShowDeleteModal(false);
       setSuccess('User deleted successfully');
       setTimeout(() => {
         navigate('/admin/users');

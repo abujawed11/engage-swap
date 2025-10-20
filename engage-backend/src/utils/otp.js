@@ -4,7 +4,7 @@ const db = require('../db');
 const BCRYPT_ROUNDS = 10; // Lighter rounds for OTP hashing
 const OTP_EXPIRY_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
-const RESEND_COOLDOWN_SECONDS = 60;
+const RESEND_COOLDOWN_SECONDS = 30; // Reduced from 60 to 30 seconds
 
 /**
  * Generate a random 6-digit OTP code

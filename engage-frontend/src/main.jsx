@@ -15,6 +15,7 @@ import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import AdminLogin from "./pages/AdminLogin";
 import Analytics from "./pages/Analytics";
 import CampaignAnalyticsDetail from "./pages/CampaignAnalyticsDetail";
 import AuthGate from "./components/AuthGate";
@@ -53,6 +54,7 @@ const router = createBrowserRouter([
       { path: "verify-email", element: <VerifyEmail /> },
       { path: "forgot-password", element: <ForgotPassword /> },
       { path: "reset-password", element: <ResetPassword /> },
+      { path: "admin-login", element: <AdminLogin /> },
 
       // Info & Legal pages (Public)
       { path: "about", element: <About /> },

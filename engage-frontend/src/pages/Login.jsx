@@ -54,6 +54,11 @@ export default function Login() {
       // Navigate to dashboard
       navigate("/dashboard");
     } catch (err) {
+      // Check if admin trying to login - redirect to admin login page
+      if (err.code === "ADMIN_OTP_REQUIRED") {
+        navigate("/admin-login");
+        return;
+      }
       // Check if email not verified
       if (err.code === "EMAIL_NOT_VERIFIED") {
         setEmailNotVerified(true);

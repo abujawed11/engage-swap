@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const db = require('../db');
+const config = require('../config');
 const { signToken } = require('../utils/jwt');
 const {
   validateUsername,
@@ -562,6 +563,17 @@ router.post('/login', async (req, res, next) => {
       });
     }
 
+    // Block admin login via password - admins must use OTP login
+    if (user.is_admin) {
+      return res.status(403).json({
+        error: {
+          code: 'ADMIN_OTP_REQUIRED',
+          message: 'Admin users must login using OTP. Please use the admin login page.',
+        },
+        redirectTo: '/admin-login',
+      });
+    }
+
     // Verify password (constant-time comparison via bcrypt)
     const passwordValid = await bcrypt.compare(password, user.password_hash);
 
@@ -599,6 +611,176 @@ router.post('/login', async (req, res, next) => {
       email: user.email,
       is_admin: user.is_admin,
     });
+
+    res.status(200).json({ token });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /auth/admin-login
+ * Request OTP for admin login (email configured in .env)
+ * No email required in request - uses ADMIN_DB_EMAIL for lookup, ADMIN_OTP_EMAIL for sending
+ */
+router.post('/admin-login', async (req, res, next) => {
+  try {
+    // Use admin DB email from config to find user
+    const dbEmail = config.ADMIN_DB_EMAIL;
+    const dbEmailLower = dbEmail.toLowerCase();
+    const [users] = await db.query(
+      `SELECT id, username, email, is_admin, is_disabled
+       FROM users
+       WHERE email_lower = ?
+       LIMIT 1`,
+      [dbEmailLower]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Admin account not found',
+        },
+      });
+    }
+
+    const user = users[0];
+
+    // Verify user is admin
+    if (!user.is_admin) {
+      return res.status(403).json({
+        error: {
+          code: 'FORBIDDEN',
+          message: 'This account does not have admin privileges',
+        },
+      });
+    }
+
+    // Check if account is disabled
+    if (user.is_disabled) {
+      return res.status(403).json({
+        error: {
+          code: 'ACCOUNT_DISABLED',
+          message: 'This account has been disabled',
+        },
+      });
+    }
+
+    // Check cooldown
+    const canSend = await canResendOTP(user.id);
+    if (!canSend) {
+      return res.status(429).json({
+        error: {
+          code: 'TOO_MANY_REQUESTS',
+          message: 'Please wait 60 seconds before requesting another code',
+        },
+      });
+    }
+
+    // Generate OTP for admin login
+    const { code } = await createOTP(user.id, 'admin_login');
+
+    // Send OTP email to configured delivery address (not the DB email)
+    const deliveryEmail = config.ADMIN_OTP_EMAIL;
+    await sendVerificationEmail(deliveryEmail, code);
+
+    console.log(`[Auth] Admin login OTP sent to ${deliveryEmail} for user ${user.id} (${user.username})`);
+
+    res.status(200).json({
+      ok: true,
+      message: 'OTP sent to your email',
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /auth/admin-verify-otp
+ * Verify OTP for admin login
+ * No email required - uses ADMIN_DB_EMAIL from .env for lookup
+ */
+router.post('/admin-verify-otp', async (req, res, next) => {
+  try {
+    const code = sanitizeInput(req.body.code, 6);
+
+    if (!code) {
+      return res.status(422).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Code is required',
+        },
+      });
+    }
+
+    // Use admin DB email from config to find user
+    const dbEmail = config.ADMIN_DB_EMAIL;
+    const dbEmailLower = dbEmail.toLowerCase();
+    const [users] = await db.query(
+      `SELECT id, username, email, is_admin, is_disabled
+       FROM users
+       WHERE email_lower = ?
+       LIMIT 1`,
+      [dbEmailLower]
+    );
+
+    if (users.length === 0) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_CODE',
+          message: 'Invalid verification code',
+        },
+      });
+    }
+
+    const user = users[0];
+
+    // Verify user is admin
+    if (!user.is_admin) {
+      return res.status(403).json({
+        error: {
+          code: 'FORBIDDEN',
+          message: 'This account does not have admin privileges',
+        },
+      });
+    }
+
+    // Check if account is disabled
+    if (user.is_disabled) {
+      return res.status(403).json({
+        error: {
+          code: 'ACCOUNT_DISABLED',
+          message: 'This account has been disabled',
+        },
+      });
+    }
+
+    // Verify OTP
+    const result = await verifyOTP(user.id, code, 'admin_login', true);
+
+    if (!result.success) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_CODE',
+          message: result.error || 'Invalid verification code',
+        },
+      });
+    }
+
+    // Update IP address on login
+    const ipAddress = getClientIp(req);
+    await db.query('UPDATE users SET ip_address = ? WHERE id = ?', [ipAddress, user.id]);
+
+    // Sign JWT
+    const token = signToken({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      is_admin: user.is_admin,
+    });
+
+    console.log(`[Auth] Admin ${user.username} (${user.id}) logged in successfully via OTP`);
 
     res.status(200).json({ token });
   } catch (err) {

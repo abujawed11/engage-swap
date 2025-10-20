@@ -300,12 +300,19 @@ router.delete('/users/:id', async (req, res, next) => {
       });
     }
 
-    // Delete user (cascading will handle related records)
-    await db.query('DELETE FROM users WHERE id = ?', [userId]);
+    // Soft delete user by disabling account (prevents foreign key constraint errors)
+    await db.query(
+      `UPDATE users
+       SET is_disabled = 1,
+           disabled_at = NOW(),
+           disabled_reason = ?
+       WHERE id = ?`,
+      [`Deleted by admin ${req.user.id}`, userId]
+    );
 
-    console.log(`[Admin] User ${userId} (${users[0].username}) DELETED by admin ${req.user.id}`);
+    console.log(`[Admin] User ${userId} (${users[0].username}) SOFT DELETED (disabled) by admin ${req.user.id}`);
 
-    res.json({ success: true, message: 'User deleted successfully' });
+    res.json({ success: true, message: 'User account disabled successfully' });
   } catch (err) {
     next(err);
   }
