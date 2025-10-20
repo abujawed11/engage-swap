@@ -207,7 +207,7 @@ export default function Terms() {
             <h3 className="text-lg font-semibold text-slate-900 mt-4 mb-2">11.2 Jurisdiction</h3>
             <p className="text-slate-700 leading-relaxed">
               Any disputes arising from these Terms or your use of the Platform shall be subject to the exclusive
-              jurisdiction of the courts located in [Your City], India.
+              jurisdiction of the courts located in Hyderabad, India.
             </p>
 
             <h3 className="text-lg font-semibold text-slate-900 mt-4 mb-2">11.3 Arbitration</h3>

@@ -137,7 +137,7 @@ export default function Disclaimer() {
             <h2 className="text-2xl font-bold text-slate-900 mb-3">11. Governing Law</h2>
             <p className="text-slate-700 leading-relaxed">
               This disclaimer is governed by the laws of India. Any disputes arising from this disclaimer or your
-              use of the platform shall be subject to the exclusive jurisdiction of the courts in [Your City], India.
+              use of the platform shall be subject to the exclusive jurisdiction of the courts in Hyderabad, India.
             </p>
           </section>
 
