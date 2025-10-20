@@ -33,6 +33,9 @@ async function createOTP(userId, purpose = 'email_verification') {
     [userId, codeHash, expiresAt, purpose]
   );
 
+  // Log OTP to console for development/testing
+  console.log(`[OTP] Generated for user ${userId} (${purpose}): ${code} | Expires: ${expiresAt.toLocaleString()}`);
+
   return { code, expiresAt };
 }
 

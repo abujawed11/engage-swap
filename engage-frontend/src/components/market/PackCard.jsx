@@ -23,9 +23,9 @@ export default function PackCard({
 
   // Determine card styling based on featured/popular status
   const cardClasses = pack.is_featured
-    ? 'border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-white'
+    ? 'border-2 border-teal-400 bg-gradient-to-br from-teal-50 to-white'
     : pack.is_popular
-    ? 'border-2 border-blue-400 bg-gradient-to-br from-blue-50 to-white'
+    ? 'border-2 border-emerald-400 bg-gradient-to-br from-emerald-50 to-white'
     : 'border border-slate-200 bg-white';
 
   return (
@@ -35,7 +35,7 @@ export default function PackCard({
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-2xl font-bold text-slate-900">{pack.tier_name}</h3>
           {pack.badge_text && (
-            <span className="text-xs font-bold px-3 py-1 rounded-full bg-yellow-400 text-slate-900 border border-yellow-500">
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-teal-400 text-white border border-teal-500">
               {pack.badge_text}
             </span>
           )}
@@ -70,7 +70,7 @@ export default function PackCard({
 
         <div className="flex items-center justify-between">
           <span className="text-sm font-bold text-slate-900">Total Coins</span>
-          <span className="text-2xl font-bold text-yellow-600">
+          <span className="text-2xl font-bold text-teal-600">
             {totalCoins.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
           </span>
         </div>
@@ -92,7 +92,7 @@ export default function PackCard({
       <div className="relative">
         {isCheckoutEnabled ? (
           <button
-            className="w-full py-3 px-4 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-600 focus:ring-offset-2"
+            className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
           >
             Buy Now
           </button>

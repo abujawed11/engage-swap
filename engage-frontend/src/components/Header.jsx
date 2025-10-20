@@ -41,6 +41,9 @@ export default function Header() {
             <NavLink to="/guide" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
               Guide
             </NavLink>
+            <NavLink to="/market" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
+              Pricing
+            </NavLink>
             <NavLink to="/contact" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
               Contact
             </NavLink>

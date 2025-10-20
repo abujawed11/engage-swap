@@ -62,7 +62,7 @@ export default function Market() {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
         <Card className="p-8 text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-600"></div>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
           <p className="mt-4 text-slate-600">Loading coin packs...</p>
         </Card>
       </div>
@@ -88,7 +88,7 @@ export default function Market() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
       {/* Header Section */}
-      <Card className="p-6 bg-gradient-to-r from-yellow-50 to-yellow-100 border-2 border-yellow-300">
+      <Card className="p-6 bg-gradient-to-r from-teal-50 to-emerald-50 border-2 border-teal-300">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex-1">
             <h1 className="text-3xl font-bold text-slate-900 mb-2">Coin Market</h1>
@@ -104,9 +104,9 @@ export default function Market() {
               onClick={handleCurrencyToggle}
               className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors font-semibold"
             >
-              <span className={currency === 'INR' ? 'text-yellow-600' : 'text-slate-400'}>₹ INR</span>
+              <span className={currency === 'INR' ? 'text-teal-600' : 'text-slate-400'}>₹ INR</span>
               <span className="text-slate-400">⇄</span>
-              <span className={currency === 'USD' ? 'text-yellow-600' : 'text-slate-400'}>$ USD</span>
+              <span className={currency === 'USD' ? 'text-teal-600' : 'text-slate-400'}>$ USD</span>
             </button>
           </div>
         </div>

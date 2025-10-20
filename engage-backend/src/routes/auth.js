@@ -54,7 +54,7 @@ router.post('/signup', async (req, res, next) => {
     const usernameLower = username.toLowerCase();
     const emailLower = email.toLowerCase();
 
-    // Check for existing user (username or email)
+    // Check for existing user (username or email) in both users and pending_users tables
     const [existing] = await db.query(
       'SELECT id FROM users WHERE username_lower = ? OR email_lower = ? LIMIT 1',
       [usernameLower, emailLower]
@@ -69,47 +69,42 @@ router.post('/signup', async (req, res, next) => {
       });
     }
 
+    // Also check pending_users to prevent duplicate signups
+    const [pendingExisting] = await db.query(
+      'SELECT id FROM pending_users WHERE username_lower = ? OR email_lower = ? LIMIT 1',
+      [usernameLower, emailLower]
+    );
+
+    if (pendingExisting.length > 0) {
+      // Delete old pending entry and allow re-registration
+      await db.query(
+        'DELETE FROM pending_users WHERE username_lower = ? OR email_lower = ?',
+        [usernameLower, emailLower]
+      );
+    }
+
     // Hash password
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     // Get client IP address
     const ipAddress = getClientIp(req);
 
-    // Insert user (unverified) with 20 welcome coins (deprecated field, kept for backward compatibility)
+    // Calculate expiry time (30 minutes from now)
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+    // Insert into pending_users table (data will be moved to users table after OTP verification)
     const [result] = await db.query(
-      `INSERT INTO users (username, username_lower, email, email_lower, password_hash, coins, is_admin, email_verified_at, ip_address)
-       VALUES (?, ?, ?, ?, ?, 20, 0, NULL, ?)`,
-      [username, usernameLower, email, emailLower, passwordHash, ipAddress]
+      `INSERT INTO pending_users (username, username_lower, email, email_lower, password_hash, ip_address, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [username, usernameLower, email, emailLower, passwordHash, ipAddress, expiresAt]
     );
 
-    const userId = result.insertId;
+    const pendingUserId = result.insertId;
 
-    // Generate and set public_id
-    const publicId = generatePublicId('USR', userId);
-    await db.query('UPDATE users SET public_id = ? WHERE id = ?', [publicId, userId]);
+    console.log(`[Auth] Created pending user ${pendingUserId} (${username}), expires at ${expiresAt.toISOString()}`);
 
-    // Create wallet with 20 initial coins
-    await db.query(
-      `INSERT INTO wallets (user_id, available, locked, lifetime_earned)
-       VALUES (?, 20.000, 0.000, 20.000)`,
-      [userId]
-    );
-
-    console.log(`[Auth] Created new user ${userId} (${username}) with wallet balance: 20 coins`);
-
-    // Check if user can receive OTP (throttle check)
-    const canSend = await canResendOTP(userId);
-    if (!canSend) {
-      return res.status(429).json({
-        error: {
-          code: 'TOO_MANY_REQUESTS',
-          message: 'Please wait before requesting another verification code',
-        },
-      });
-    }
-
-    // Generate and store OTP
-    const { code } = await createOTP(userId);
+    // Generate and store OTP using pending_users.id
+    const { code } = await createOTP(pendingUserId);
 
     // Send verification email
     await sendVerificationEmail(email, code);
@@ -122,7 +117,7 @@ router.post('/signup', async (req, res, next) => {
 
 /**
  * POST /auth/verify-email
- * Verify email with OTP code
+ * Verify email with OTP code and create user account
  */
 router.post('/verify-email', async (req, res, next) => {
   try {
@@ -138,39 +133,41 @@ router.post('/verify-email', async (req, res, next) => {
       });
     }
 
-    // Find user by username or email
+    // Find pending user by username or email
     const identifierLower = emailOrUsername.toLowerCase();
-    const [users] = await db.query(
-      `SELECT id, username, email, is_admin, email_verified_at
-       FROM users
+    const [pendingUsers] = await db.query(
+      `SELECT id, username, username_lower, email, email_lower, password_hash, ip_address, expires_at
+       FROM pending_users
        WHERE username_lower = ? OR email_lower = ?
        LIMIT 1`,
       [identifierLower, identifierLower]
     );
 
-    if (users.length === 0) {
+    if (pendingUsers.length === 0) {
       return res.status(401).json({
         error: {
           code: 'INVALID_CODE',
-          message: 'Invalid verification code',
+          message: 'Invalid verification code or registration expired',
         },
       });
     }
 
-    const user = users[0];
+    const pendingUser = pendingUsers[0];
 
-    // Check if already verified
-    if (user.email_verified_at) {
-      return res.status(409).json({
+    // Check if pending user has expired
+    if (new Date(pendingUser.expires_at) < new Date()) {
+      // Clean up expired pending user
+      await db.query('DELETE FROM pending_users WHERE id = ?', [pendingUser.id]);
+      return res.status(401).json({
         error: {
-          code: 'ALREADY_VERIFIED',
-          message: 'Email already verified',
+          code: 'REGISTRATION_EXPIRED',
+          message: 'Registration expired. Please sign up again',
         },
       });
     }
 
     // Verify OTP
-    const result = await verifyOTP(user.id, code);
+    const result = await verifyOTP(pendingUser.id, code);
 
     if (!result.success) {
       return res.status(401).json({
@@ -181,18 +178,44 @@ router.post('/verify-email', async (req, res, next) => {
       });
     }
 
-    // Mark email as verified
-    await db.query(
-      'UPDATE users SET email_verified_at = NOW() WHERE id = ?',
-      [user.id]
+    // OTP verified successfully - now create the actual user account
+    const [userResult] = await db.query(
+      `INSERT INTO users (username, username_lower, email, email_lower, password_hash, coins, is_admin, email_verified_at, ip_address)
+       VALUES (?, ?, ?, ?, ?, 20, 0, NOW(), ?)`,
+      [
+        pendingUser.username,
+        pendingUser.username_lower,
+        pendingUser.email,
+        pendingUser.email_lower,
+        pendingUser.password_hash,
+        pendingUser.ip_address
+      ]
     );
+
+    const userId = userResult.insertId;
+
+    // Generate and set public_id
+    const publicId = generatePublicId('USR', userId);
+    await db.query('UPDATE users SET public_id = ? WHERE id = ?', [publicId, userId]);
+
+    // Create wallet with 20 initial coins
+    await db.query(
+      `INSERT INTO wallets (user_id, available, locked, lifetime_earned)
+       VALUES (?, 20.000, 0.000, 20.000)`,
+      [userId]
+    );
+
+    console.log(`[Auth] User ${userId} (${pendingUser.username}) created successfully with wallet balance: 20 coins`);
+
+    // Delete pending user record
+    await db.query('DELETE FROM pending_users WHERE id = ?', [pendingUser.id]);
 
     // Sign JWT token
     const token = signToken({
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      is_admin: user.is_admin,
+      id: userId,
+      username: pendingUser.username,
+      email: pendingUser.email,
+      is_admin: 0,
     });
 
     res.status(200).json({ token });
@@ -203,7 +226,7 @@ router.post('/verify-email', async (req, res, next) => {
 
 /**
  * POST /auth/resend-otp
- * Resend verification OTP
+ * Resend verification OTP for pending users
  */
 router.post('/resend-otp', async (req, res, next) => {
   try {
@@ -218,35 +241,37 @@ router.post('/resend-otp', async (req, res, next) => {
       });
     }
 
-    // Find user by username or email
+    // Find pending user by username or email
     const identifierLower = emailOrUsername.toLowerCase();
-    const [users] = await db.query(
-      `SELECT id, email, email_verified_at
-       FROM users
+    const [pendingUsers] = await db.query(
+      `SELECT id, email, expires_at
+       FROM pending_users
        WHERE username_lower = ? OR email_lower = ?
        LIMIT 1`,
       [identifierLower, identifierLower]
     );
 
     // Don't leak whether user exists - always return 200
-    if (users.length === 0) {
+    if (pendingUsers.length === 0) {
       return res.status(200).json({ ok: true });
     }
 
-    const user = users[0];
+    const pendingUser = pendingUsers[0];
 
-    // If already verified, reject
-    if (user.email_verified_at) {
-      return res.status(409).json({
+    // Check if pending user has expired
+    if (new Date(pendingUser.expires_at) < new Date()) {
+      // Clean up expired pending user
+      await db.query('DELETE FROM pending_users WHERE id = ?', [pendingUser.id]);
+      return res.status(401).json({
         error: {
-          code: 'ALREADY_VERIFIED',
-          message: 'Email already verified',
+          code: 'REGISTRATION_EXPIRED',
+          message: 'Registration expired. Please sign up again',
         },
       });
     }
 
     // Check cooldown
-    const canSend = await canResendOTP(user.id);
+    const canSend = await canResendOTP(pendingUser.id);
     if (!canSend) {
       return res.status(429).json({
         error: {
@@ -257,10 +282,10 @@ router.post('/resend-otp', async (req, res, next) => {
     }
 
     // Generate new OTP
-    const { code } = await createOTP(user.id);
+    const { code } = await createOTP(pendingUser.id);
 
     // Send email
-    await sendVerificationEmail(user.email, code);
+    await sendVerificationEmail(pendingUser.email, code);
 
     res.status(200).json({ ok: true });
   } catch (err) {
