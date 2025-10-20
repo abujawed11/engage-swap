@@ -3,7 +3,8 @@ import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "./index.css";
 import App from "./App";
-import Home from "./pages/Home";
+import Landing from "./pages/Landing";
+import Dashboard from "./pages/Dashboard";
 import Earn from "./pages/Earn";
 import Gateway from "./pages/Gateway";
 import Promote from "./pages/Promote";
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       // Public routes
+      { index: true, element: <Landing /> }, // Public landing page
       { path: "login", element: <Login /> },
       { path: "signup", element: <Signup /> },
       { path: "verify-email", element: <VerifyEmail /> },
@@ -42,8 +44,8 @@ const router = createBrowserRouter([
 
       // Protected routes
       {
-        index: true,
-        element: <AuthGate><Home /></AuthGate>
+        path: "dashboard",
+        element: <AuthGate><Dashboard /></AuthGate>
       },
       {
         path: "earn",

@@ -4,8 +4,8 @@ import { useApp } from "../lib/appState";
 import { clearToken } from "../lib/api";
 import { formatCoinsValue } from "../lib/coins";
 
-const linkBase = "px-3 py-1 rounded hover:bg-slate-100";
-const active = "text-teal-700 font-medium";
+const linkBase = "px-3 py-2 rounded hover:bg-slate-100 transition-colors";
+const active = "text-teal-700 font-medium bg-teal-50";
 
 export default function Header() {
   const { user, setUser } = useApp();
@@ -21,36 +21,30 @@ export default function Header() {
 
   return (
     <header className="border-b bg-white">
-      <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-4">
-        <h1 className="text-xl font-bold whitespace-nowrap">
-          <span className="text-teal-600">Engage</span>Swap
-        </h1>
+      <div className="px-6 py-3 flex items-center justify-between gap-4">
+        <Link to={user ? "/dashboard" : "/"}>
+          <h1 className="text-xl font-bold whitespace-nowrap cursor-pointer hover:opacity-80 transition-opacity">
+            <span className="text-teal-600">Engage</span>Swap
+          </h1>
+        </Link>
 
-        <nav className="text-sm flex gap-1">
-          <NavLink to="/" end className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
-            Home
-          </NavLink>
-          <NavLink to="/earn" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
-            Earn
-          </NavLink>
-          <NavLink to="/promote" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
-            Promote
-          </NavLink>
-          <NavLink to="/analytics" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
-            Analytics
-          </NavLink>
-          <NavLink to="/market" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
-            Market
-          </NavLink>
-          <NavLink to="/wallet" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
-            Wallet
-          </NavLink>
-          {user && user.is_admin && (
-            <NavLink to="/admin" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
-              Admin
+        {/* Show nav items only when logged out */}
+        {!user && (
+          <nav className="flex gap-1 text-sm">
+            <NavLink to="/" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
+              Home
             </NavLink>
-          )}
-        </nav>
+            <NavLink to="/about" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
+              About
+            </NavLink>
+            <NavLink to="/guide" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
+              Guide
+            </NavLink>
+            <NavLink to="/contact" className={({ isActive }) => `${linkBase} ${isActive ? active : ""}`}>
+              Contact
+            </NavLink>
+          </nav>
+        )}
 
         <div className="ml-auto flex items-center gap-3">
           {/* Coins display - only show when logged in */}

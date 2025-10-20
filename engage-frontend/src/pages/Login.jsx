@@ -51,8 +51,8 @@ export default function Login() {
       const userData = await auth.me();
       setUser(userData);
 
-      // Navigate to home
-      navigate("/");
+      // Navigate to dashboard
+      navigate("/dashboard");
     } catch (err) {
       // Check if email not verified
       if (err.code === "EMAIL_NOT_VERIFIED") {
