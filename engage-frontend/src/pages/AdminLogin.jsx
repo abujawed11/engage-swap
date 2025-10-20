@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -13,9 +13,15 @@ export default function AdminLogin() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [sendingOTP, setSendingOTP] = useState(true);
+  const otpSentRef = useRef(false);
 
   // Auto-send OTP when component mounts (only once)
   useEffect(() => {
+    // Prevent double-sending in React StrictMode
+    if (otpSentRef.current) {
+      return;
+    }
+
     // Check if we already sent OTP in this session
     const otpSentTime = sessionStorage.getItem('admin_otp_sent_at');
     const now = Date.now();
@@ -24,9 +30,11 @@ export default function AdminLogin() {
     if (otpSentTime && (now - parseInt(otpSentTime)) < 60000) {
       setSendingOTP(false);
       setMessage('OTP already sent. Please check your email or wait 60 seconds to resend.');
+      otpSentRef.current = true;
       return;
     }
 
+    otpSentRef.current = true;
     sendOTP();
   }, []);
 

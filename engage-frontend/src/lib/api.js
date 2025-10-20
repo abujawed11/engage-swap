@@ -16,6 +16,8 @@ export function getToken() {
 
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
+  // Clear admin OTP session data on logout
+  sessionStorage.removeItem('admin_otp_sent_at');
 }
 
 // ─── Generic fetch helper ───
