@@ -105,7 +105,8 @@ router.post('/signup', async (req, res, next) => {
     console.log(`[Auth] Created pending user ${pendingUserId} (${username}), expires at ${expiresAt.toISOString()}`);
 
     // Generate and store OTP using pending_users.id
-    const { code } = await createOTP(pendingUserId);
+    // Pass isPending=true to store in pending_user_otps table
+    const { code } = await createOTP(pendingUserId, 'email_verification', true);
 
     // Send verification email
     await sendVerificationEmail(email, code);
@@ -167,8 +168,8 @@ router.post('/verify-email', async (req, res, next) => {
       });
     }
 
-    // Verify OTP
-    const result = await verifyOTP(pendingUser.id, code);
+    // Verify OTP - use isPending=true to check pending_user_otps table
+    const result = await verifyOTP(pendingUser.id, code, 'email_verification', true, true);
 
     if (!result.success) {
       return res.status(401).json({
@@ -271,8 +272,8 @@ router.post('/resend-otp', async (req, res, next) => {
       });
     }
 
-    // Check cooldown
-    const canSend = await canResendOTP(pendingUser.id);
+    // Check cooldown - use isPending=true
+    const canSend = await canResendOTP(pendingUser.id, true);
     if (!canSend) {
       return res.status(429).json({
         error: {
@@ -282,8 +283,8 @@ router.post('/resend-otp', async (req, res, next) => {
       });
     }
 
-    // Generate new OTP
-    const { code } = await createOTP(pendingUser.id);
+    // Generate new OTP - use isPending=true
+    const { code } = await createOTP(pendingUser.id, 'email_verification', true);
 
     // Send email
     await sendVerificationEmail(pendingUser.email, code);

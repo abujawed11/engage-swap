@@ -115,6 +115,9 @@ const validatorRouter = require('./src/routes/validator');
 const app = express();
 const API_PREFIX = '/api';
 
+// ─── Trust Proxy (for rate limiting behind reverse proxy) ───
+app.set('trust proxy', 1);
+
 // ─── Middleware ───
 app.use(cors({
   origin: config.CORS_ORIGIN,
