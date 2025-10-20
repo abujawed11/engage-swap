@@ -267,12 +267,8 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
 
   // Fetch analytics summary when date range changes
   useEffect(() => {
-    if (campaigns.length > 0) {
-      fetchAnalyticsSummary();
-    } else {
-      setAnalyticsLoading(false);
-    }
-  }, [dateRange, campaigns.length]);
+    fetchAnalyticsSummary();
+  }, [dateRange]);
 
   const fetchAnalyticsSummary = async () => {
     setAnalyticsLoading(true);
@@ -345,8 +341,8 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
     );
   }
 
-  // Empty state
-  if (campaigns.length === 0) {
+  // Empty state - only show if no analytics data exists
+  if (!analyticsData?.campaigns || analyticsData.campaigns.length === 0) {
     return (
       <Card>
         <div className="text-center py-12">
@@ -506,7 +502,7 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
                 {sortedCampaigns.map((campaign, idx) => (
                   <tr
                     key={campaign.id}
-                    className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-emerald-50 transition-colors cursor-pointer`}
+                    className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${campaign.is_deleted ? 'opacity-60' : 'hover:bg-emerald-50'} transition-colors cursor-pointer`}
                     onClick={() => navigate(`/analytics/campaign/${campaign.id}`)}
                   >
                     <td className="p-3">
@@ -517,13 +513,15 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
                     </td>
                     <td className="p-3 text-center">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        campaign.status === 'finished'
+                        campaign.is_deleted
+                          ? 'bg-red-100 text-red-800'
+                          : campaign.status === 'finished'
                           ? 'bg-green-100 text-green-800'
                           : campaign.status === 'paused'
                           ? 'bg-slate-200 text-slate-700'
                           : 'bg-emerald-100 text-emerald-800'
                       }`}>
-                        {campaign.status === 'finished' ? 'Finished' : campaign.status === 'paused' ? 'Paused' : 'Active'}
+                        {campaign.is_deleted ? 'Deleted' : campaign.status === 'finished' ? 'Finished' : campaign.status === 'paused' ? 'Paused' : 'Active'}
                       </span>
                     </td>
                     <td className="p-3 text-right font-mono">{campaign.visits.toLocaleString()}</td>

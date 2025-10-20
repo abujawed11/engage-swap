@@ -166,6 +166,7 @@ router.get('/my-earnings', authRequired, async (req, res, next) => {
 
     // Get recent visit history (including failed attempts and consolation rewards)
     // Use UNION to combine quiz attempts AND standalone consolation rewards (when quiz wasn't submitted)
+    // Prefer snapshot fields from visits table to display campaign titles even if campaigns are deleted
     const [recentVisits] = await db.query(
       `(
         SELECT
@@ -176,8 +177,8 @@ router.get('/my-earnings', authRequired, async (req, res, next) => {
           COALESCE(v.coins_earned, cr.amount, 0) as coins_earned,
           CASE WHEN cr.id IS NOT NULL OR v.is_consolation = 1 THEN 1 ELSE 0 END as is_consolation,
           COALESCE(v.campaign_id, cr.campaign_id, qa.campaign_id) as campaign_id,
-          CAST(c.title AS CHAR(255)) COLLATE utf8mb4_unicode_ci as campaign_title,
-          CAST(c.url AS CHAR(500)) COLLATE utf8mb4_unicode_ci as campaign_url,
+          CAST(COALESCE(v.campaign_title_snapshot, c.title) AS CHAR(255)) COLLATE utf8mb4_unicode_ci as campaign_title,
+          CAST(COALESCE(v.campaign_url_snapshot, c.url) AS CHAR(500)) COLLATE utf8mb4_unicode_ci as campaign_url,
           qa.passed as quiz_passed,
           qa.correct_count,
           qa.total_count,
@@ -200,7 +201,8 @@ router.get('/my-earnings', authRequired, async (req, res, next) => {
           CASE
             WHEN qa.total_count > 0 THEN ROUND((qa.correct_count / qa.total_count) * 100, 1)
             ELSE NULL
-          END as quiz_score
+          END as quiz_score,
+          c.deleted_at as campaign_deleted_at
         FROM quiz_attempts qa
         LEFT JOIN visits v ON qa.visit_token = v.visit_token COLLATE utf8mb4_unicode_ci
         LEFT JOIN consolation_rewards cr ON qa.visit_token = cr.visit_token COLLATE utf8mb4_unicode_ci
@@ -226,7 +228,8 @@ router.get('/my-earnings', authRequired, async (req, res, next) => {
           TRUE as is_rewarded,
           TRUE as is_completed,
           'bonus' as reward_type,
-          NULL as quiz_score
+          NULL as quiz_score,
+          c.deleted_at as campaign_deleted_at
         FROM consolation_rewards cr
         LEFT JOIN campaigns c ON cr.campaign_id = c.id
         WHERE cr.user_id = ?
@@ -256,6 +259,7 @@ router.get('/my-earnings', authRequired, async (req, res, next) => {
         campaign_id: row.campaign_id,
         campaign_title: row.campaign_title,
         campaign_url: row.campaign_url,
+        campaign_is_deleted: Boolean(row.campaign_deleted_at),
         coins_earned: parseFloat(row.coins_earned) || 0,
         is_rewarded: Boolean(row.is_rewarded),
         is_completed: Boolean(row.is_completed),
@@ -323,12 +327,14 @@ router.get('/my-campaigns', authRequired, async (req, res, next) => {
       campaigns: data.campaigns.map(c => ({
         id: c.id,
         title: c.title,
+        is_deleted: c.is_deleted,
+        deleted_at: c.deleted_at,
         visits: c.visits,
         completions: c.completions
       }))
     });
 
-    res.status(200).json({
+    const responseData = {
       date_range: {
         from: fromDateIST,
         to: toDateIST,
@@ -336,7 +342,13 @@ router.get('/my-campaigns', authRequired, async (req, res, next) => {
         timezone: 'Asia/Kolkata (IST)',
       },
       ...data,
-    });
+    };
+
+    console.log('[Analytics] Sending response with deleted flags:',
+      responseData.campaigns.map(c => ({ id: c.id, is_deleted: c.is_deleted }))
+    );
+
+    res.status(200).json(responseData);
   } catch (err) {
     next(err);
   }
@@ -424,6 +436,8 @@ router.get('/campaigns/:campaignId', authRequired, async (req, res, next) => {
         clicks_remaining: parseInt(campaignInfo.clicks_remaining),
         is_paused: Boolean(campaignInfo.is_paused),
         is_finished: Boolean(campaignInfo.is_finished),
+        is_deleted: Boolean(campaignInfo.deleted_at),
+        deleted_at: campaignInfo.deleted_at,
         created_at: campaignInfo.created_at,
       },
       date_range: {

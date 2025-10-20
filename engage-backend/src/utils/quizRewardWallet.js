@@ -12,10 +12,11 @@ const wallet = require('./wallet');
  * @param {number} campaignId - Campaign ID
  * @param {string} visitToken - Visit token (for idempotency)
  * @param {number} rewardAmount - Amount to award
- * @param {Object} quizMetadata - Quiz metadata (correct_count, total_count, multiplier, etc.)
+ * @param {Object} quizMetadata - Quiz metadata (correct_count, total_count, multiplier, campaign_title, etc.)
  * @returns {Promise<Object>} { amount, newBalance }
  */
 async function issueQuizReward(connection, userId, campaignId, visitToken, rewardAmount, quizMetadata) {
+  const campaignTitle = quizMetadata.campaign_title || null;
   // Ensure wallet exists
   const [existingWallet] = await connection.query(
     'SELECT id FROM wallets WHERE user_id = ? LIMIT 1',
@@ -62,11 +63,11 @@ async function issueQuizReward(connection, userId, campaignId, visitToken, rewar
     );
     const balanceAfter = wallet.formatAmount(updatedWallet[0].available);
 
-    // Create transaction with balance_after
+    // Create transaction with balance_after and campaign title snapshot
     const [txnResult] = await connection.query(
       `INSERT INTO wallet_transactions
-       (user_id, type, status, amount, sign, balance_after, campaign_id, source, reference_id, metadata)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (user_id, type, status, amount, sign, balance_after, campaign_id, campaign_title_snapshot, source, reference_id, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         wallet.TXN_TYPE.EARNED,
@@ -75,6 +76,7 @@ async function issueQuizReward(connection, userId, campaignId, visitToken, rewar
         wallet.TXN_SIGN.PLUS,
         balanceAfter,
         campaignId,
+        campaignTitle,
         'quiz_reward',
         referenceId,
         JSON.stringify({
@@ -85,6 +87,7 @@ async function issueQuizReward(connection, userId, campaignId, visitToken, rewar
           multiplier: quizMetadata.multiplier,
           full_reward: quizMetadata.full_reward,
           actual_reward: rewardAmount,
+          campaign_title: campaignTitle,
         })
       ]
     );

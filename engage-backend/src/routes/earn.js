@@ -41,7 +41,7 @@ router.get('/queue', async (req, res, next) => {
         `SELECT c.id, c.public_id, c.title, c.url, c.coins_per_visit, c.watch_duration, c.total_clicks, c.clicks_served, c.created_at, u.username as creator_username
          FROM campaigns c
          INNER JOIN users u ON c.user_id = u.id
-         WHERE c.user_id != ? AND c.is_paused = 0 AND c.is_finished = 0 AND c.clicks_served < c.total_clicks
+         WHERE c.user_id != ? AND c.is_paused = 0 AND c.is_finished = 0 AND c.clicks_served < c.total_clicks AND c.deleted_at IS NULL
          ORDER BY c.created_at DESC
          LIMIT 10`,
         [userId]
@@ -244,9 +244,9 @@ router.post('/claim', async (req, res, next) => {
     await connection.beginTransaction();
 
     try {
-      // Re-fetch campaign with FOR UPDATE lock
+      // Re-fetch campaign with FOR UPDATE lock (include title and url for snapshots)
       const [campaigns] = await connection.query(
-        `SELECT id, user_id, is_paused, coins_per_visit, watch_duration, total_clicks, clicks_served
+        `SELECT id, user_id, title, url, is_paused, coins_per_visit, watch_duration, total_clicks, clicks_served
          FROM campaigns
          WHERE id = ?
          FOR UPDATE`,
@@ -448,6 +448,7 @@ router.post('/claim', async (req, res, next) => {
           passed: quizResult.passed,
           multiplier: quizResult.multiplier,
           full_reward: fullReward,
+          campaign_title: campaign.title, // Add campaign title for snapshot
         }
       );
 
@@ -481,12 +482,12 @@ router.post('/claim', async (req, res, next) => {
       );
       console.log('[Claim] Campaign state after update:', updatedCampaign[0]);
 
-      // Record visit with actual coins awarded and visit_token for quiz tracking
+      // Record visit with actual coins awarded, visit_token, and campaign snapshots
       const today = new Date().toISOString().slice(0, 10);
       const [visitResult] = await connection.query(
-        `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, is_consolation, visit_date, visit_token)
-         VALUES (?, ?, ?, ?, 0, ?, ?)`,
-        [userId, campaignId, campaign.user_id, coinsAwarded, today, token]
+        `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, is_consolation, visit_date, visit_token, campaign_title_snapshot, campaign_url_snapshot)
+         VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+        [userId, campaignId, campaign.user_id, coinsAwarded, today, token, campaign.title, campaign.url]
       );
 
       // Generate and set public_id for visit

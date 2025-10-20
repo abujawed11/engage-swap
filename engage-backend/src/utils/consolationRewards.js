@@ -55,15 +55,31 @@ async function issueConsolationReward(connection, userId, campaignId, visitToken
   const amount = roundCoins(CONSOLATION_CONFIG.DEFAULT_AMOUNT);
 
   // For deleted campaigns, check if campaign still exists, otherwise use NULL
+  // Also fetch campaign title and URL for snapshots
   let finalCampaignId = campaignId;
+  let campaignTitle = null;
+  let campaignUrl = null;
   if (campaignId && (reason === 'CAMPAIGN_DELETED' || reason === 'CAMPAIGN_PAUSED')) {
     const [campaignCheck] = await connection.query(
-      'SELECT id FROM campaigns WHERE id = ? LIMIT 1',
+      'SELECT id, title, url FROM campaigns WHERE id = ? LIMIT 1',
       [campaignId]
     );
     // If campaign doesn't exist, use NULL to avoid FK constraint error
     if (campaignCheck.length === 0) {
       finalCampaignId = null;
+    } else {
+      campaignTitle = campaignCheck[0].title;
+      campaignUrl = campaignCheck[0].url;
+    }
+  } else if (campaignId) {
+    // For other reasons, fetch campaign details
+    const [campaignDetails] = await connection.query(
+      'SELECT title, url FROM campaigns WHERE id = ? LIMIT 1',
+      [campaignId]
+    );
+    if (campaignDetails.length > 0) {
+      campaignTitle = campaignDetails[0].title;
+      campaignUrl = campaignDetails[0].url;
     }
   }
 
@@ -117,11 +133,11 @@ async function issueConsolationReward(connection, userId, campaignId, visitToken
     );
     const balanceAfter = wallet.formatAmount(updatedWallet[0].available);
 
-    // Create transaction with balance_after
+    // Create transaction with balance_after and campaign title snapshot
     const [txnResult] = await connection.query(
       `INSERT INTO wallet_transactions
-       (user_id, type, status, amount, sign, balance_after, campaign_id, source, reference_id, metadata)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (user_id, type, status, amount, sign, balance_after, campaign_id, campaign_title_snapshot, source, reference_id, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         wallet.TXN_TYPE.BONUS,
@@ -130,9 +146,10 @@ async function issueConsolationReward(connection, userId, campaignId, visitToken
         wallet.TXN_SIGN.PLUS,
         balanceAfter,
         finalCampaignId,
+        campaignTitle, // Snapshot the campaign title
         'consolation',
         referenceId,
-        JSON.stringify({ reason, visit_token: visitToken })
+        JSON.stringify({ reason, visit_token: visitToken, campaign_title: campaignTitle })
       ]
     );
     txnId = txnResult.insertId;
@@ -187,10 +204,24 @@ async function issueConsolationReward(connection, userId, campaignId, visitToken
 async function recordFailedVisit(connection, userId, campaignId, campaignOwnerId, visitToken, publicId) {
   const today = new Date().toISOString().slice(0, 10);
 
+  // Get campaign details for snapshot
+  let campaignTitle = null;
+  let campaignUrl = null;
+  if (campaignId) {
+    const [campaignDetails] = await connection.query(
+      'SELECT title, url FROM campaigns WHERE id = ? LIMIT 1',
+      [campaignId]
+    );
+    if (campaignDetails.length > 0) {
+      campaignTitle = campaignDetails[0].title;
+      campaignUrl = campaignDetails[0].url;
+    }
+  }
+
   await connection.query(
-    `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, is_consolation, visit_date, visit_token, public_id)
-     VALUES (?, ?, ?, 0.000, 0, ?, ?, ?)`,
-    [userId, campaignId, campaignOwnerId, today, visitToken, publicId]
+    `INSERT INTO visits (user_id, campaign_id, campaign_owner_id, coins_earned, is_consolation, visit_date, visit_token, public_id, campaign_title_snapshot, campaign_url_snapshot)
+     VALUES (?, ?, ?, 0.000, 0, ?, ?, ?, ?, ?)`,
+    [userId, campaignId, campaignOwnerId, today, visitToken, publicId, campaignTitle, campaignUrl]
   );
 }
 

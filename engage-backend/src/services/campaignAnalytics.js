@@ -363,7 +363,8 @@ async function getCampaignInfo(campaignId) {
       (total_clicks - clicks_served) as clicks_remaining,
       created_at,
       is_paused,
-      is_finished
+      is_finished,
+      deleted_at
      FROM campaigns
      WHERE id = ?`,
     [campaignId]
@@ -403,7 +404,10 @@ async function checkCampaignOwnership(campaignId, userId) {
 async function getUserCampaignsSummary(userId, fromDateIST, toDateIST) {
   validateDateRange(fromDateIST, toDateIST);
 
-  // Get all campaigns for the user
+  console.log('[getUserCampaignsSummary] Starting query for user:', userId);
+  console.log('[getUserCampaignsSummary] Date range:', { fromDateIST, toDateIST });
+
+  // Get all campaigns for the user (including deleted ones for analytics)
   const [campaigns] = await db.query(
     `SELECT
       id,
@@ -414,12 +418,21 @@ async function getUserCampaignsSummary(userId, fromDateIST, toDateIST) {
       (total_clicks - clicks_served) as clicks_remaining,
       is_paused,
       is_finished,
+      deleted_at,
       created_at
      FROM campaigns
      WHERE user_id = ?
      ORDER BY created_at DESC`,
     [userId]
   );
+
+  console.log('[getUserCampaignsSummary] Campaigns found:', campaigns.length);
+  console.log('[getUserCampaignsSummary] Campaign details:', campaigns.map(c => ({
+    id: c.id,
+    title: c.title,
+    deleted_at: c.deleted_at,
+    is_deleted: Boolean(c.deleted_at)
+  })));
 
   if (campaigns.length === 0) {
     return {
@@ -542,6 +555,8 @@ async function getUserCampaignsSummary(userId, fromDateIST, toDateIST) {
       coins_spent: parseFloat(analytics.coins_spent.toFixed(3)),
       coins_per_completion: parseFloat(coinsPerCompletion.toFixed(3)),
       avg_quiz_accuracy: parseFloat(analytics.avg_quiz_accuracy.toFixed(1)),
+      is_deleted: Boolean(campaign.deleted_at),
+      deleted_at: campaign.deleted_at,
       created_at: campaign.created_at
     };
   });
@@ -559,7 +574,7 @@ async function getUserCampaignsSummary(userId, fromDateIST, toDateIST) {
     ? totalCoinsSpent / totalCompletions
     : 0;
 
-  return {
+  const result = {
     summary: {
       total_visits: totalVisits,
       total_completions: totalCompletions,
@@ -569,6 +584,17 @@ async function getUserCampaignsSummary(userId, fromDateIST, toDateIST) {
     },
     campaigns: campaignsWithAnalytics
   };
+
+  console.log('[getUserCampaignsSummary] Returning result with campaigns:', result.campaigns.map(c => ({
+    id: c.id,
+    title: c.title,
+    is_deleted: c.is_deleted,
+    deleted_at: c.deleted_at,
+    visits: c.visits,
+    completions: c.completions
+  })));
+
+  return result;
 }
 
 // ============================================================================

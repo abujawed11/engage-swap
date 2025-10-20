@@ -18,7 +18,7 @@ const router = express.Router();
 
 /**
  * GET /campaigns
- * List all campaigns owned by authenticated user
+ * List all campaigns owned by authenticated user (excluding deleted campaigns)
  */
 router.get('/', async (req, res, next) => {
   try {
@@ -27,7 +27,7 @@ router.get('/', async (req, res, next) => {
     const [campaigns] = await db.query(
       `SELECT id, public_id, title, url, coins_per_visit, watch_duration, total_clicks, clicks_served, is_paused, is_finished, created_at
        FROM campaigns
-       WHERE user_id = ?
+       WHERE user_id = ? AND deleted_at IS NULL
        ORDER BY created_at DESC`,
       [userId]
     );
@@ -402,8 +402,9 @@ router.patch('/:id', async (req, res, next) => {
 
 /**
  * DELETE /campaigns/:id
- * Delete campaign (only if owned by authenticated user)
+ * Soft delete campaign (only if owned by authenticated user)
  * Refunds unused coins to the user
+ * Campaign remains in database but marked as deleted for historical analytics
  */
 router.delete('/:id', async (req, res, next) => {
   try {
@@ -416,14 +417,14 @@ router.delete('/:id', async (req, res, next) => {
       });
     }
 
-    // Start transaction to calculate refund and delete atomically
+    // Start transaction to calculate refund and soft delete atomically
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
       // Fetch campaign details with lock
       const [campaigns] = await connection.query(
-        `SELECT id, user_id, coins_per_visit, watch_duration, total_clicks, clicks_served
+        `SELECT id, user_id, title, coins_per_visit, watch_duration, total_clicks, clicks_served, deleted_at
          FROM campaigns
          WHERE id = ? AND user_id = ?
          FOR UPDATE`,
@@ -439,6 +440,15 @@ router.delete('/:id', async (req, res, next) => {
       }
 
       const campaign = campaigns[0];
+
+      // Check if already deleted
+      if (campaign.deleted_at) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          error: { code: 'ALREADY_DELETED', message: 'Campaign has already been deleted' },
+        });
+      }
 
       // Convert to numbers for calculation
       const V = Number(campaign.coins_per_visit);     // Base coins per visit
@@ -528,11 +538,11 @@ router.delete('/:id', async (req, res, next) => {
           );
           const balanceAfter = wallet.formatAmount(updatedWallet[0].available);
 
-          // Create REFUND transaction with balance_after
+          // Create REFUND transaction with balance_after and campaign title snapshot
           const [txnResult] = await connection.query(
             `INSERT INTO wallet_transactions
-             (user_id, type, status, amount, sign, balance_after, campaign_id, source, reference_id, metadata)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (user_id, type, status, amount, sign, balance_after, campaign_id, campaign_title_snapshot, source, reference_id, metadata)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               userId,
               wallet.TXN_TYPE.REFUND,
@@ -541,10 +551,12 @@ router.delete('/:id', async (req, res, next) => {
               wallet.TXN_SIGN.PLUS,
               balanceAfter,
               campaignId,
+              campaign.title, // Snapshot the title at deletion time
               'campaign_deletion',
               referenceId,
               JSON.stringify({
                 campaign_id: campaignId,
+                campaign_title: campaign.title,
                 total_clicks: C,
                 clicks_served: k,
                 remaining_clicks: remainingClicks,
@@ -568,16 +580,21 @@ router.delete('/:id', async (req, res, next) => {
               wallet.AUDIT_ACTION.CREATE_TXN,
               txnId,
               wallet.formatAmount(refundAmount),
-              `Campaign deletion refund: ${remainingClicks} unused clicks`,
+              `Campaign deletion refund: ${campaign.title} - ${remainingClicks} unused clicks`,
             ]
           );
         }
       }
 
-      // Delete campaign (will cascade delete visits due to FK)
+      // SOFT DELETE: Mark campaign as deleted instead of hard delete
       await connection.query(
-        'DELETE FROM campaigns WHERE id = ?',
-        [campaignId]
+        `UPDATE campaigns
+         SET deleted_at = NOW(),
+             deleted_by_user_id = ?,
+             deleted_reason = 'user_initiated',
+             is_paused = 1
+         WHERE id = ?`,
+        [userId, campaignId]
       );
 
       await connection.commit();
@@ -585,7 +602,8 @@ router.delete('/:id', async (req, res, next) => {
 
       res.status(200).json({
         ok: true,
-        refunded: refundAmount
+        refunded: refundAmount,
+        message: 'Campaign deleted successfully'
       });
     } catch (err) {
       await connection.rollback();

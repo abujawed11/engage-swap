@@ -326,6 +326,7 @@ async function getEligibleCampaignsWithRotation(userId, limit = 10) {
       AND c.is_paused = 0
       AND c.is_finished = 0
       AND c.clicks_served < c.total_clicks
+      AND c.deleted_at IS NULL
   `;
 
   const [campaigns] = await db.query(query, [
