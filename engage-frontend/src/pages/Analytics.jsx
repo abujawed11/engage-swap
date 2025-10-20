@@ -263,7 +263,7 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [analyticsError, setAnalyticsError] = useState(null);
   const [dateRange, setDateRange] = useState(7); // 7, 14, or 30 days
-  const [sortConfig, setSortConfig] = useState({ key: 'visits', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'updated_at', direction: 'desc' });
 
   // Fetch analytics summary when date range changes
   useEffect(() => {
@@ -292,8 +292,13 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
       let aVal = a[sortConfig.key];
       let bVal = b[sortConfig.key];
 
+      // Handle date sorting (for updated_at, created_at, deleted_at)
+      if (sortConfig.key === 'updated_at' || sortConfig.key === 'created_at' || sortConfig.key === 'deleted_at') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      }
       // Handle string sorting (for title and status)
-      if (typeof aVal === 'string') {
+      else if (typeof aVal === 'string') {
         aVal = aVal.toLowerCase();
         bVal = bVal.toLowerCase();
       }
@@ -509,6 +514,15 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
                       <div className="font-semibold text-slate-900">{campaign.title}</div>
                       <div className="text-xs text-slate-500">
                         {campaign.clicks_served.toLocaleString()}/{campaign.total_clicks.toLocaleString()} clicks served
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        Updated: {new Date(campaign.updated_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </div>
                     </td>
                     <td className="p-3 text-center">

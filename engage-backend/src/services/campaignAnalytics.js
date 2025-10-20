@@ -419,10 +419,11 @@ async function getUserCampaignsSummary(userId, fromDateIST, toDateIST) {
       is_paused,
       is_finished,
       deleted_at,
-      created_at
+      created_at,
+      updated_at
      FROM campaigns
      WHERE user_id = ?
-     ORDER BY created_at DESC`,
+     ORDER BY updated_at DESC`,
     [userId]
   );
 
@@ -557,7 +558,8 @@ async function getUserCampaignsSummary(userId, fromDateIST, toDateIST) {
       avg_quiz_accuracy: parseFloat(analytics.avg_quiz_accuracy.toFixed(1)),
       is_deleted: Boolean(campaign.deleted_at),
       deleted_at: campaign.deleted_at,
-      created_at: campaign.created_at
+      created_at: campaign.created_at,
+      updated_at: campaign.updated_at
     };
   });
 
