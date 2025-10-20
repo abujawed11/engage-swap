@@ -608,21 +608,25 @@ export default function Promote() {
                       {c.is_finished ? (
                         <Button
                           onClick={() => handleReAdd(c)}
-                          className="text-xs px-2 py-1 h-auto bg-green-600 hover:bg-green-700"
+                          className="text-xs px-2 py-1 h-auto bg-teal-600 hover:bg-teal-700 text-white"
                         >
                           Re-add
                         </Button>
                       ) : (
                         <Button
                           onClick={() => handlePauseResume(c)}
-                          className="text-xs px-2 py-1 h-auto"
+                          className={`text-xs px-2 py-1 h-auto text-white ${
+                            c.is_paused
+                              ? "bg-teal-600 hover:bg-teal-700"
+                              : "bg-amber-500 hover:bg-amber-400"
+                          }`}
                         >
                           {c.is_paused ? "Resume" : "Pause"}
                         </Button>
                       )}
                       <Button
                         onClick={() => handleDelete(c.id, c.title)}
-                        className="text-xs px-2 py-1 h-auto bg-red-600 hover:bg-red-700"
+                        className="text-xs px-2 py-1 h-auto bg-red-400 hover:bg-red-500 text-white"
                       >
                         Delete
                       </Button>
