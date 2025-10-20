@@ -373,7 +373,7 @@ export default function Gateway() {
                 Campaign: <span className="font-semibold text-teal-700">{campaign.title}</span>
               </p>
             </div>
-            <Button onClick={handleCancel} className="bg-slate-500 hover:bg-slate-600">
+            <Button onClick={handleCancel} className="">
               Cancel Visit
             </Button>
           </div>
@@ -490,7 +490,7 @@ export default function Gateway() {
                   )}
                 </p>
               </div>
-              <Button onClick={handleReopenPopup} className="bg-blue-600 hover:bg-blue-700">
+              <Button onClick={handleReopenPopup} className="">
                 {popupOpen && !popupClosed ? "Focus Popup" : "Reopen Popup"}
               </Button>
             </div>
@@ -511,7 +511,7 @@ export default function Gateway() {
           {quizCompleted && !quizResult?.passed ? (
             <Button
               onClick={handleCancel}
-              className="w-full text-lg py-4 bg-slate-600 hover:bg-slate-700"
+              className="w-full py-4"
             >
               Return to Campaigns
             </Button>
@@ -519,7 +519,7 @@ export default function Gateway() {
             <Button
               onClick={handleClaim}
               disabled={!canClaim || isClaiming}
-              className="w-full text-lg py-4"
+              className="w-full py-4"
             >
               {isClaiming
                 ? "Claiming..."

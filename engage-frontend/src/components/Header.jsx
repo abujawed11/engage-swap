@@ -22,7 +22,8 @@ export default function Header() {
   return (
     <header className="border-b bg-white">
       <div className="px-6 py-3 flex items-center justify-between gap-4">
-        <Link to={user ? "/dashboard" : "/"}>
+        <Link to={user ? "/dashboard" : "/"} className="flex items-center gap-2">
+          <img src="/mylogo.png" alt="EngageSwap Logo" className="h-8 w-8" />
           <h1 className="text-xl font-bold whitespace-nowrap cursor-pointer hover:opacity-80 transition-opacity">
             <span className="text-teal-600">Engage</span>Swap
           </h1>

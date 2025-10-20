@@ -20,6 +20,18 @@ import CampaignAnalyticsDetail from "./pages/CampaignAnalyticsDetail";
 import AuthGate from "./components/AuthGate";
 import { AppProvider } from "./lib/appState";
 
+// Info & Legal pages
+import About from "./pages/About";
+import Contact from "./pages/Contact";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import Refund from "./pages/Refund";
+import Disclaimer from "./pages/Disclaimer";
+import FAQ from "./pages/FAQ";
+import Support from "./pages/Support";
+import Cookies from "./pages/Cookies";
+import Guide from "./pages/Guide";
+
 // Admin pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -41,6 +53,18 @@ const router = createBrowserRouter([
       { path: "verify-email", element: <VerifyEmail /> },
       { path: "forgot-password", element: <ForgotPassword /> },
       { path: "reset-password", element: <ResetPassword /> },
+
+      // Info & Legal pages (Public)
+      { path: "about", element: <About /> },
+      { path: "contact", element: <Contact /> },
+      { path: "privacy", element: <Privacy /> },
+      { path: "terms", element: <Terms /> },
+      { path: "refund", element: <Refund /> },
+      { path: "disclaimer", element: <Disclaimer /> },
+      { path: "faq", element: <FAQ /> },
+      { path: "support", element: <Support /> },
+      { path: "cookies", element: <Cookies /> },
+      { path: "guide", element: <Guide /> },
 
       // Protected routes
       {

@@ -174,7 +174,7 @@ export default function Earn() {
               <Button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="text-sm"
+                className=""
               >
                 {isRefreshing ? "Refreshing..." : "🔄 Refresh"}
               </Button>
