@@ -32,6 +32,7 @@ import FAQ from "./pages/FAQ";
 import Support from "./pages/Support";
 import Cookies from "./pages/Cookies";
 import Guide from "./pages/Guide";
+import Shipping from "./pages/Shipping";
 
 // Admin pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -67,6 +68,8 @@ const router = createBrowserRouter([
       { path: "support", element: <Support /> },
       { path: "cookies", element: <Cookies /> },
       { path: "guide", element: <Guide /> },
+      { path: "shipping", element: <Shipping /> },
+
 
       // Protected routes
       {

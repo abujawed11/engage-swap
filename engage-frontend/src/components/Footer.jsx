@@ -198,6 +198,7 @@ export default function Footer() {
                 { to: "/privacy", label: "Privacy Policy" },
                 { to: "/terms", label: "Terms & Conditions" },
                 { to: "/refund", label: "Refund Policy" },
+                { to: "/shipping", label: "Shipping & Delivery Policy" }, // ✅ Added
                 { to: "/disclaimer", label: "Disclaimer" },
                 { to: "/cookies", label: "Cookie Policy" },
               ].map((item) => (
