@@ -5,73 +5,99 @@
 >
   <url>
     <loc>https://engageswap.in/</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/promote</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/earn</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/market</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/guide</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/about</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.6</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/contact</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.6</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/privacy</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/terms</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/refund</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/disclaimer</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
 
   <url>
     <loc>https://engageswap.in/cookies</loc>
+    <lastmod>2025-10-21</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
+  </url>
+
+  <url>
+    <loc>https://engageswap.in/faq</loc>
+    <lastmod>2025-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://engageswap.in/support</loc>
+    <lastmod>2025-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
   </url>
 </urlset>

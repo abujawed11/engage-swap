@@ -16,8 +16,11 @@ export default function PageSEO({ title, description, keywords, canonicalPath, r
       {description && <meta property="og:description" content={description} />}
       <meta property="og:type" content="website" />
       <meta property="og:url" content={canon} />
-      <meta property="og:image" content="/web-app-manifest-512x512.png" />
+      <meta property="og:image" content="https://engageswap.in/web-app-manifest-512x512.png" />
+      <meta property="og:image:width" content="512" />
+      <meta property="og:image:height" content="512" />
       <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:image" content="https://engageswap.in/web-app-manifest-512x512.png" />
     </>
   );
 }
