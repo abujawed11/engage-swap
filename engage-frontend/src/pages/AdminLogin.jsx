@@ -4,6 +4,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { API_BASE, auth, setToken } from '../lib/api';
 import { useApp } from '../lib/appState';
+import PageSEO from '../components/PageSEO';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -132,80 +133,90 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <Card className="max-w-md w-full p-8">
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            Admin Login
-          </h1>
-          <p className="text-slate-600">
-            {sendingOTP
-              ? 'Sending OTP to your email...'
-              : 'Enter the OTP code sent to your email'}
-          </p>
-        </div>
+    <>
+      <PageSEO
+        title="Admin | EngageSwap"
+        description="Administration portal."
+        canonicalPath="/admin"
+        robots="noindex,nofollow,noarchive"
+      />
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-            {error}
-          </div>
-        )}
 
-        {message && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-            {message}
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+        <Card className="max-w-md w-full p-8">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">
+              Admin Login
+            </h1>
+            <p className="text-slate-600">
+              {sendingOTP
+                ? 'Sending OTP to your email...'
+                : 'Enter the OTP code sent to your email'}
+            </p>
           </div>
-        )}
 
-        {sendingOTP ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
-          </div>
-        ) : (
-          <form onSubmit={handleVerifyOTP} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                OTP Code
-              </label>
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Enter 6-digit code"
-                maxLength="6"
-                className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-center text-2xl font-mono tracking-widest"
-                disabled={loading}
-                required
-                autoFocus
-              />
-              <p className="mt-2 text-xs text-slate-500 text-center">
-                Check your email inbox for the OTP code
-              </p>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+              {error}
             </div>
+          )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Verifying...' : 'Verify & Login'}
-            </Button>
-
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={handleResendOTP}
-                className="text-sm text-teal-600 hover:text-teal-700 font-medium"
-                disabled={loading}
-              >
-                Resend OTP
-              </button>
+          {message && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+              {message}
             </div>
-          </form>
-        )}
+          )}
 
-        <div className="mt-6 pt-6 border-t border-slate-200">
-          <p className="text-sm text-slate-600 text-center">
-            Regular user? <a href="/login" className="text-teal-600 hover:underline">Login here</a>
-          </p>
-        </div>
-      </Card>
-    </div>
+          {sendingOTP ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+            </div>
+          ) : (
+            <form onSubmit={handleVerifyOTP} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  OTP Code
+                </label>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="Enter 6-digit code"
+                  maxLength="6"
+                  className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-center text-2xl font-mono tracking-widest"
+                  disabled={loading}
+                  required
+                  autoFocus
+                />
+                <p className="mt-2 text-xs text-slate-500 text-center">
+                  Check your email inbox for the OTP code
+                </p>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Verifying...' : 'Verify & Login'}
+              </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handleResendOTP}
+                  className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+                  disabled={loading}
+                >
+                  Resend OTP
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <p className="text-sm text-slate-600 text-center">
+              Regular user? <a href="/login" className="text-teal-600 hover:underline">Login here</a>
+            </p>
+          </div>
+        </Card>
+      </div>
+    </>
   );
 }

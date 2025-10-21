@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Card from '../components/ui/Card';
 import BackButton from '../components/ui/BackButton';
+import PageSEO from '../components/PageSEO';
 
 export default function FAQ() {
   const [openIndex, setOpenIndex] = useState(null);
@@ -128,59 +129,70 @@ export default function FAQ() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <BackButton />
 
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-slate-900 mb-4">Frequently Asked Questions</h1>
-        <p className="text-xl text-slate-600">
-          Find answers to common questions about EngageSwap
-        </p>
-      </div>
+    <>
+      <PageSEO
+        title="FAQ — EngageSwap"
+        description="Answers to common questions about earning coins, creating campaigns, and verification quizzes."
+        canonicalPath="/faq"
+      />
 
-      <div className="space-y-6">
-        {faqs.map((category, categoryIndex) => (
-          <Card key={categoryIndex}>
-            <h2 className="text-2xl font-bold text-teal-700 mb-4">{category.category}</h2>
-            <div className="space-y-3">
-              {category.questions.map((faq, questionIndex) => {
-                const isOpen = openIndex === `${categoryIndex}-${questionIndex}`;
-                return (
-                  <div key={questionIndex} className="border border-slate-200 rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => toggleQuestion(categoryIndex, questionIndex)}
-                      className="w-full text-left px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between"
-                    >
-                      <span className="font-semibold text-slate-900">{faq.q}</span>
-                      <span className="text-xl text-teal-600">{isOpen ? '−' : '+'}</span>
-                    </button>
-                    {isOpen && (
-                      <div className="px-4 py-3 bg-white text-slate-700 leading-relaxed">
-                        {faq.a}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        ))}
-      </div>
 
-      <Card className="bg-gradient-to-br from-teal-50 to-emerald-50 border-teal-200">
+
+      <div className="max-w-4xl mx-auto space-y-8">
+        <BackButton />
+
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-slate-900 mb-3">Still Have Questions?</h2>
-          <p className="text-slate-700 mb-6">
-            Can't find what you're looking for? Our support team is here to help!
+          <h1 className="text-4xl font-bold text-slate-900 mb-4">Frequently Asked Questions</h1>
+          <p className="text-xl text-slate-600">
+            Find answers to common questions about EngageSwap
           </p>
-          <a
-            href="/contact"
-            className="inline-block bg-teal-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-teal-700 transition-colors"
-          >
-            Contact Support
-          </a>
         </div>
-      </Card>
-    </div>
+
+        <div className="space-y-6">
+          {faqs.map((category, categoryIndex) => (
+            <Card key={categoryIndex}>
+              <h2 className="text-2xl font-bold text-teal-700 mb-4">{category.category}</h2>
+              <div className="space-y-3">
+                {category.questions.map((faq, questionIndex) => {
+                  const isOpen = openIndex === `${categoryIndex}-${questionIndex}`;
+                  return (
+                    <div key={questionIndex} className="border border-slate-200 rounded-lg overflow-hidden">
+                      <button
+                        onClick={() => toggleQuestion(categoryIndex, questionIndex)}
+                        className="w-full text-left px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between"
+                      >
+                        <span className="font-semibold text-slate-900">{faq.q}</span>
+                        <span className="text-xl text-teal-600">{isOpen ? '−' : '+'}</span>
+                      </button>
+                      {isOpen && (
+                        <div className="px-4 py-3 bg-white text-slate-700 leading-relaxed">
+                          {faq.a}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="bg-gradient-to-br from-teal-50 to-emerald-50 border-teal-200">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-slate-900 mb-3">Still Have Questions?</h2>
+            <p className="text-slate-700 mb-6">
+              Can't find what you're looking for? Our support team is here to help!
+            </p>
+            <a
+              href="/contact"
+              className="inline-block bg-teal-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-teal-700 transition-colors"
+            >
+              Contact Support
+            </a>
+          </div>
+        </Card>
+      </div>
+    </>
   );
 }

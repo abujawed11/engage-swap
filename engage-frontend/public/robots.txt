@@ -1,0 +1,14 @@
+# robots.txt for EngageSwap
+User-agent: *
+Allow: /
+
+# Disallow admin/API routes that don’t need indexing
+Disallow: /admin/
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /wallet
+Disallow: /dashboard
+
+# Sitemap location
+Sitemap: https://engageswap.in/sitemap.xml

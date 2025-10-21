@@ -4,6 +4,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { campaigns as campaignsAPI, analytics as analyticsAPI } from '../lib/api';
 import { formatCoinsValue } from '../lib/coins';
+import PageSEO from '../components/PageSEO';
 
 export default function Analytics() {
   const navigate = useNavigate();
@@ -39,48 +40,56 @@ export default function Analytics() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">Analytics Dashboard</h1>
-        <p className="text-slate-600 mt-1">Track your earnings and campaign performance</p>
-      </div>
+    <>
+      <PageSEO
+        title="Analytics | EngageSwap"
+        description="Track campaign performance and engagement quality."
+        canonicalPath="/analytics"
+        robots="noindex,follow"
+      />
 
-      {/* Tab Navigation */}
-      <div className="border-b border-slate-200">
-        <div className="flex gap-1">
-          <button
-            onClick={() => setActiveTab('earnings')}
-            className={`px-6 py-3 font-semibold transition-colors relative ${
-              activeTab === 'earnings'
-                ? 'text-teal-600 border-b-2 border-teal-600'
-                : 'text-slate-600 hover:text-slate-800'
-            }`}
-          >
-            📊 My Earnings
-          </button>
-          <button
-            onClick={() => setActiveTab('campaigns')}
-            className={`px-6 py-3 font-semibold transition-colors relative ${
-              activeTab === 'campaigns'
-                ? 'text-teal-600 border-b-2 border-teal-600'
-                : 'text-slate-600 hover:text-slate-800'
-            }`}
-          >
-            🚀 My Campaigns
-            {campaigns.length > 0 && (
-              <span className="ml-2 px-2 py-0.5 text-xs bg-teal-100 text-teal-700 rounded-full">
-                {campaigns.length}
-              </span>
-            )}
-          </button>
+
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Analytics Dashboard</h1>
+          <p className="text-slate-600 mt-1">Track your earnings and campaign performance</p>
         </div>
-      </div>
 
-      {/* Tab Content */}
-      {activeTab === 'earnings' && <EarningsAnalytics />}
-      {activeTab === 'campaigns' && <CampaignsAnalytics campaigns={campaigns} loading={loading} navigate={navigate} />}
-    </div>
+        {/* Tab Navigation */}
+        <div className="border-b border-slate-200">
+          <div className="flex gap-1">
+            <button
+              onClick={() => setActiveTab('earnings')}
+              className={`px-6 py-3 font-semibold transition-colors relative ${activeTab === 'earnings'
+                  ? 'text-teal-600 border-b-2 border-teal-600'
+                  : 'text-slate-600 hover:text-slate-800'
+                }`}
+            >
+              📊 My Earnings
+            </button>
+            <button
+              onClick={() => setActiveTab('campaigns')}
+              className={`px-6 py-3 font-semibold transition-colors relative ${activeTab === 'campaigns'
+                  ? 'text-teal-600 border-b-2 border-teal-600'
+                  : 'text-slate-600 hover:text-slate-800'
+                }`}
+            >
+              🚀 My Campaigns
+              {campaigns.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 text-xs bg-teal-100 text-teal-700 rounded-full">
+                  {campaigns.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'earnings' && <EarningsAnalytics />}
+        {activeTab === 'campaigns' && <CampaignsAnalytics campaigns={campaigns} loading={loading} navigate={navigate} />}
+      </div>
+    </>
   );
 }
 
@@ -205,25 +214,23 @@ function EarningsAnalytics() {
                     </td>
                     <td className="p-3">{new Date(visit.visited_at).toLocaleString()}</td>
                     <td className="p-3 text-right">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        visit.is_rewarded
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${visit.is_rewarded
                           ? 'bg-green-100 text-green-800'
                           : visit.is_completed
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
                         {visit.is_rewarded ? 'Rewarded' : visit.is_completed ? 'Completed' : 'Failed'}
                       </span>
                     </td>
                     <td className="p-3 text-right">
                       {visit.reward_type ? (
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          visit.reward_type === 'bonus'
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${visit.reward_type === 'bonus'
                             ? 'bg-purple-100 text-purple-800'
                             : visit.reward_type === 'quiz'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}>
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}>
                           {visit.reward_type === 'bonus' ? '🎁 Bonus' : visit.reward_type === 'quiz' ? '✅ Quiz' : 'Not Eligible'}
                         </span>
                       ) : (
@@ -376,31 +383,28 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
             <div className="flex gap-2">
               <button
                 onClick={() => setDateRange(7)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  dateRange === 7
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${dateRange === 7
                     ? 'bg-emerald-600 text-white shadow-md'
                     : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
-                }`}
+                  }`}
               >
                 Last 7 days
               </button>
               <button
                 onClick={() => setDateRange(14)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  dateRange === 14
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${dateRange === 14
                     ? 'bg-emerald-600 text-white shadow-md'
                     : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
-                }`}
+                  }`}
               >
                 Last 14 days
               </button>
               <button
                 onClick={() => setDateRange(30)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  dateRange === 30
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${dateRange === 30
                     ? 'bg-emerald-600 text-white shadow-md'
                     : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
-                }`}
+                  }`}
               >
                 Last 30 days
               </button>
@@ -526,15 +530,14 @@ function CampaignsAnalytics({ campaigns, loading, navigate }) {
                       </div>
                     </td>
                     <td className="p-3 text-center">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        campaign.is_deleted
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${campaign.is_deleted
                           ? 'bg-red-100 text-red-800'
                           : campaign.status === 'finished'
-                          ? 'bg-green-100 text-green-800'
-                          : campaign.status === 'paused'
-                          ? 'bg-slate-200 text-slate-700'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}>
+                            ? 'bg-green-100 text-green-800'
+                            : campaign.status === 'paused'
+                              ? 'bg-slate-200 text-slate-700'
+                              : 'bg-emerald-100 text-emerald-800'
+                        }`}>
                         {campaign.is_deleted ? 'Deleted' : campaign.status === 'finished' ? 'Finished' : campaign.status === 'paused' ? 'Paused' : 'Active'}
                       </span>
                     </td>

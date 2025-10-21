@@ -6,6 +6,7 @@ import Button from "../components/ui/Button";
 import { earn as earnAPI } from "../lib/api";
 import { useApp } from "../lib/appState";
 import { formatCoinsValue } from "../lib/coins";
+import PageSEO from "../components/PageSEO";
 
 const COOLDOWN_MS = 5000; // 5 seconds
 
@@ -142,184 +143,190 @@ export default function Earn() {
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <h2 className="text-2xl font-semibold">Earn Coins</h2>
-        <p className="mt-2 text-slate-600">
-          Visit campaigns and watch for the required duration to earn coins. Choose from available campaigns below.
-        </p>
-      </Card>
+    <>
+      <PageSEO
+        title="Earn Coins by Visiting Sites — Real Engagement | EngageSwap"
+        description="Browse campaigns, watch for 30–120s, answer 5 quick questions, and earn coins instantly."
+        canonicalPath="/earn"
+      />
 
-      {error && (
+
+      <div className="space-y-6">
         <Card>
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-            {error}
+          <h2 className="text-2xl font-semibold">Earn Coins</h2>
+          <p className="mt-2 text-slate-600">
+            Visit campaigns and watch for the required duration to earn coins. Choose from available campaigns below.
           </p>
         </Card>
-      )}
 
-      {campaigns.length === 0 ? (
-        <Card>
-          <p className="text-slate-600">
-            No eligible campaigns right now. Create one on the Promote page, or check back later.
-          </p>
-        </Card>
-      ) : (
-        <div className="space-y-4">
+        {error && (
           <Card>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-700">
-                Available Campaigns ({campaigns.length})
-              </h3>
-              <Button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className=""
-              >
-                {isRefreshing ? "Refreshing..." : "🔄 Refresh"}
-              </Button>
-            </div>
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+              {error}
+            </p>
           </Card>
+        )}
 
-          {campaigns.map((campaign) => {
-            const valueTier = getValueTier(campaign.coins_per_visit);
-            const totalBudget = calculateTotalBudget(campaign);
-
-            return (
-            <Card key={campaign.id}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="text-lg font-semibold">{campaign.title}</div>
-                    {campaign.creator_username && (
-                      <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                        by @{campaign.creator_username}
-                      </span>
-                    )}
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded border ${valueTier.color}`}>
-                      {valueTier.label} VALUE
-                    </span>
-                    {campaign.created_at && (
-                      <span className="text-xs text-slate-400">
-                        • Created {formatTimeAgo(campaign.created_at)}
-                      </span>
-                    )}
-                  </div>
-                  <a
-                    href={campaign.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-teal-700 break-all hover:underline"
-                  >
-                    {campaign.url}
-                  </a>
-                  <div className="mt-2 flex items-center gap-4 text-sm text-slate-600 flex-wrap">
-                    <span className="font-semibold text-teal-700">
-                      +{formatCoinsValue(campaign.coins_per_visit)} coins
-                    </span>
-                    <span>•</span>
-                    <span>{campaign.watch_duration || 30}s watch required</span>
-                    <span>•</span>
-                    <span>{campaign.clicks_served}/{campaign.total_clicks} completed</span>
-                    <span>•</span>
-                    <span className="text-xs text-slate-500">
-                      Total Budget: {formatCoinsValue(totalBudget)}
-                    </span>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="mt-2 w-full bg-slate-200 rounded-full h-2">
-                    <div
-                      className="bg-teal-600 h-2 rounded-full transition-all"
-                      style={{ width: `${(campaign.clicks_served / campaign.total_clicks) * 100}%` }}
-                    />
-                  </div>
-
-                  {/* Availability Status Message */}
-                  {!campaign.available && campaign.status_message && (
-                    <div className={`mt-3 px-3 py-2 rounded border ${
-                      campaign.availability_status === 'LIMIT_REACHED'
-                        ? 'bg-red-50 border-red-200'
-                        : 'bg-yellow-50 border-yellow-200'
-                    }`}>
-                      <div className="flex items-start gap-2">
-                        <span className="text-lg">
-                          {campaign.availability_status === 'LIMIT_REACHED' ? '🚫' : '⏳'}
-                        </span>
-                        <div className="flex-1">
-                          <p className={`text-sm font-semibold ${
-                            campaign.availability_status === 'LIMIT_REACHED'
-                              ? 'text-red-800'
-                              : 'text-yellow-800'
-                          }`}>
-                            {campaign.status_message}
-                          </p>
-                          {campaign.retry_info && (
-                            <>
-                              <p className={`text-xs mt-1 font-medium ${
-                                campaign.availability_status === 'LIMIT_REACHED'
-                                  ? 'text-red-700'
-                                  : 'text-yellow-700'
-                              }`}>
-                                ⏰ {campaign.retry_info}
-                              </p>
-                              {campaign.availability_status === 'LIMIT_REACHED' && (
-                                <p className="text-xs mt-1 text-red-600 italic">
-                                  💡 Limits reset automatically at midnight (12:00 AM IST)
-                                </p>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="shrink-0">
-                  <Button
-                    onClick={() => handleVisit(campaign)}
-                    disabled={isInCooldown || !campaign.available}
-                    className="whitespace-nowrap"
-                  >
-                    {!campaign.available
-                      ? "Not Available"
-                      : isInCooldown
-                        ? "Cooldown..."
-                        : "Visit & Earn"
-                    }
-                  </Button>
-                </div>
+        {campaigns.length === 0 ? (
+          <Card>
+            <p className="text-slate-600">
+              No eligible campaigns right now. Create one on the Promote page, or check back later.
+            </p>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            <Card>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-700">
+                  Available Campaigns ({campaigns.length})
+                </h3>
+                <Button
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className=""
+                >
+                  {isRefreshing ? "Refreshing..." : "🔄 Refresh"}
+                </Button>
               </div>
             </Card>
-          );
-          })}
-        </div>
-      )}
 
-      {/* Toast Notification */}
-      {showToast && !isConsolation && (
-        <div className="fixed bottom-6 right-6 bg-teal-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-slide-up">
-          <span className="text-xl">🎉</span>
-          <span className="font-medium">+{earnedCoins} coins earned!</span>
-        </div>
-      )}
+            {campaigns.map((campaign) => {
+              const valueTier = getValueTier(campaign.coins_per_visit);
+              const totalBudget = calculateTotalBudget(campaign);
 
-      {/* Consolation Toast Notification */}
-      {showToast && isConsolation && (
-        <div className="fixed bottom-6 right-6 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-xl max-w-sm z-50 animate-slide-up">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl">💙</span>
-            <div>
-              <div className="font-bold text-lg mb-1">{consolationMessage}</div>
-              <p className="text-sm opacity-90 mb-2">{consolationDescription}</p>
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <span>+{earnedCoins} coins</span>
-                <span className="bg-white bg-opacity-20 px-2 py-0.5 rounded">Goodwill Reward</span>
+              return (
+                <Card key={campaign.id}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="text-lg font-semibold">{campaign.title}</div>
+                        {campaign.creator_username && (
+                          <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                            by @{campaign.creator_username}
+                          </span>
+                        )}
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded border ${valueTier.color}`}>
+                          {valueTier.label} VALUE
+                        </span>
+                        {campaign.created_at && (
+                          <span className="text-xs text-slate-400">
+                            • Created {formatTimeAgo(campaign.created_at)}
+                          </span>
+                        )}
+                      </div>
+                      <a
+                        href={campaign.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-teal-700 break-all hover:underline"
+                      >
+                        {campaign.url}
+                      </a>
+                      <div className="mt-2 flex items-center gap-4 text-sm text-slate-600 flex-wrap">
+                        <span className="font-semibold text-teal-700">
+                          +{formatCoinsValue(campaign.coins_per_visit)} coins
+                        </span>
+                        <span>•</span>
+                        <span>{campaign.watch_duration || 30}s watch required</span>
+                        <span>•</span>
+                        <span>{campaign.clicks_served}/{campaign.total_clicks} completed</span>
+                        <span>•</span>
+                        <span className="text-xs text-slate-500">
+                          Total Budget: {formatCoinsValue(totalBudget)}
+                        </span>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="mt-2 w-full bg-slate-200 rounded-full h-2">
+                        <div
+                          className="bg-teal-600 h-2 rounded-full transition-all"
+                          style={{ width: `${(campaign.clicks_served / campaign.total_clicks) * 100}%` }}
+                        />
+                      </div>
+
+                      {/* Availability Status Message */}
+                      {!campaign.available && campaign.status_message && (
+                        <div className={`mt-3 px-3 py-2 rounded border ${campaign.availability_status === 'LIMIT_REACHED'
+                            ? 'bg-red-50 border-red-200'
+                            : 'bg-yellow-50 border-yellow-200'
+                          }`}>
+                          <div className="flex items-start gap-2">
+                            <span className="text-lg">
+                              {campaign.availability_status === 'LIMIT_REACHED' ? '🚫' : '⏳'}
+                            </span>
+                            <div className="flex-1">
+                              <p className={`text-sm font-semibold ${campaign.availability_status === 'LIMIT_REACHED'
+                                  ? 'text-red-800'
+                                  : 'text-yellow-800'
+                                }`}>
+                                {campaign.status_message}
+                              </p>
+                              {campaign.retry_info && (
+                                <>
+                                  <p className={`text-xs mt-1 font-medium ${campaign.availability_status === 'LIMIT_REACHED'
+                                      ? 'text-red-700'
+                                      : 'text-yellow-700'
+                                    }`}>
+                                    ⏰ {campaign.retry_info}
+                                  </p>
+                                  {campaign.availability_status === 'LIMIT_REACHED' && (
+                                    <p className="text-xs mt-1 text-red-600 italic">
+                                      💡 Limits reset automatically at midnight (12:00 AM IST)
+                                    </p>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="shrink-0">
+                      <Button
+                        onClick={() => handleVisit(campaign)}
+                        disabled={isInCooldown || !campaign.available}
+                        className="whitespace-nowrap"
+                      >
+                        {!campaign.available
+                          ? "Not Available"
+                          : isInCooldown
+                            ? "Cooldown..."
+                            : "Visit & Earn"
+                        }
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Toast Notification */}
+        {showToast && !isConsolation && (
+          <div className="fixed bottom-6 right-6 bg-teal-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-slide-up">
+            <span className="text-xl">🎉</span>
+            <span className="font-medium">+{earnedCoins} coins earned!</span>
+          </div>
+        )}
+
+        {/* Consolation Toast Notification */}
+        {showToast && isConsolation && (
+          <div className="fixed bottom-6 right-6 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-xl max-w-sm z-50 animate-slide-up">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">💙</span>
+              <div>
+                <div className="font-bold text-lg mb-1">{consolationMessage}</div>
+                <p className="text-sm opacity-90 mb-2">{consolationDescription}</p>
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span>+{earnedCoins} coins</span>
+                  <span className="bg-white bg-opacity-20 px-2 py-0.5 rounded">Goodwill Reward</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }

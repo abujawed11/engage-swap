@@ -4,6 +4,7 @@ import Card from '../components/ui/Card';
 import PackCard from '../components/market/PackCard';
 import FAQSection from '../components/market/FAQSection';
 import { API_BASE } from '../lib/api';
+import PageSEO from '../components/PageSEO';
 
 export default function Market() {
   const [packs, setPacks] = useState([]);
@@ -71,6 +72,7 @@ export default function Market() {
 
   if (error) {
     return (
+
       <div className="max-w-7xl mx-auto px-4 py-8">
         <Card className="p-8 bg-red-50 border border-red-200">
           <p className="text-red-800 font-semibold">Error: {error}</p>
@@ -86,59 +88,68 @@ export default function Market() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-      {/* Header Section */}
-      <Card className="p-6 bg-gradient-to-r from-teal-50 to-emerald-50 border-2 border-teal-300">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">Coin Market</h1>
-            <p className="text-slate-700">
-              {settings?.bannerMessage || 'Get more coins to boost your campaigns! Choose a pack that fits your needs.'}
-            </p>
+    <>
+      <PageSEO
+        title="Buy Coins — Grow Your Campaign Faster | EngageSwap"
+        description="Choose a coin pack that fits your goals and fund your campaigns to get real visitors quickly."
+        canonicalPath="/market"
+      />
+
+
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        {/* Header Section */}
+        <Card className="p-6 bg-gradient-to-r from-teal-50 to-emerald-50 border-2 border-teal-300">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-slate-900 mb-2">Coin Market</h1>
+              <p className="text-slate-700">
+                {settings?.bannerMessage || 'Get more coins to boost your campaigns! Choose a pack that fits your needs.'}
+              </p>
+            </div>
+
+            {/* Currency Toggle */}
+            <div className="flex items-center gap-3 bg-white rounded-lg p-2 shadow-sm border border-slate-200">
+              <span className="text-sm font-medium text-slate-600">Currency:</span>
+              <button
+                onClick={handleCurrencyToggle}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors font-semibold"
+              >
+                <span className={currency === 'INR' ? 'text-teal-600' : 'text-slate-400'}>₹ INR</span>
+                <span className="text-slate-400">⇄</span>
+                <span className={currency === 'USD' ? 'text-teal-600' : 'text-slate-400'}>$ USD</span>
+              </button>
+            </div>
           </div>
-
-          {/* Currency Toggle */}
-          <div className="flex items-center gap-3 bg-white rounded-lg p-2 shadow-sm border border-slate-200">
-            <span className="text-sm font-medium text-slate-600">Currency:</span>
-            <button
-              onClick={handleCurrencyToggle}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors font-semibold"
-            >
-              <span className={currency === 'INR' ? 'text-teal-600' : 'text-slate-400'}>₹ INR</span>
-              <span className="text-slate-400">⇄</span>
-              <span className={currency === 'USD' ? 'text-teal-600' : 'text-slate-400'}>$ USD</span>
-            </button>
-          </div>
-        </div>
-      </Card>
-
-      {/* Coin Packs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {packs.map((pack) => (
-          <PackCard
-            key={pack.id}
-            pack={pack}
-            currency={currency}
-            formatCurrency={formatCurrency}
-            isCheckoutEnabled={settings?.isCheckoutEnabled}
-            comingSoonMessage={settings?.comingSoonMessage}
-            showEffectivePrice={settings?.showEffectivePrice}
-            showBonusBreakdown={settings?.showBonusBreakdown}
-          />
-        ))}
-      </div>
-
-      {/* FAQ Section */}
-      <FAQSection />
-
-      {/* Footer Note */}
-      {settings?.footerNote && (
-        <Card className="p-4 bg-slate-50 border border-slate-200">
-          <p className="text-xs text-slate-600 text-center">
-            {settings.footerNote}
-          </p>
         </Card>
-      )}
-    </div>
+
+        {/* Coin Packs Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {packs.map((pack) => (
+            <PackCard
+              key={pack.id}
+              pack={pack}
+              currency={currency}
+              formatCurrency={formatCurrency}
+              isCheckoutEnabled={settings?.isCheckoutEnabled}
+              comingSoonMessage={settings?.comingSoonMessage}
+              showEffectivePrice={settings?.showEffectivePrice}
+              showBonusBreakdown={settings?.showBonusBreakdown}
+            />
+          ))}
+        </div>
+
+        {/* FAQ Section */}
+        <FAQSection />
+
+        {/* Footer Note */}
+        {settings?.footerNote && (
+          <Card className="p-4 bg-slate-50 border border-slate-200">
+            <p className="text-xs text-slate-600 text-center">
+              {settings.footerNote}
+            </p>
+          </Card>
+        )}
+      </div>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import Input from "../components/ui/Input";
 import Label from "../components/ui/Label";
 import { auth, setToken } from "../lib/api";
 import { useApp } from "../lib/appState";
+import PageSEO from "../components/PageSEO";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -90,82 +91,92 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <Card className="max-w-md w-full">
-        <h2 className="text-2xl font-semibold">Login</h2>
-        <p className="mt-2 text-slate-600">
-          Sign in to your account to continue.
-        </p>
+    <>
+      <PageSEO
+        title="Login | EngageSwap"
+        description="Access your EngageSwap account."
+        canonicalPath="/login"
+        robots="noindex,follow"
+      />
 
-        {successMessage && (
-          <div className="mt-4 text-sm text-green-600 bg-green-50 border border-green-200 rounded px-3 py-2">
-            {successMessage}
-          </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <Label htmlFor="identifier">Username or Email</Label>
-            <Input
-              id="identifier"
-              name="identifier"
-              value={form.identifier}
-              onChange={onChange}
-              placeholder="johndoe or you@example.com"
-            />
-          </div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="max-w-md w-full">
+          <h2 className="text-2xl font-semibold">Login</h2>
+          <p className="mt-2 text-slate-600">
+            Sign in to your account to continue.
+          </p>
 
-          <div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              <Link
-                to="/forgot-password"
-                className="text-xs text-teal-600 hover:text-teal-700 font-medium"
-              >
-                Forgot password?
-              </Link>
-            </div>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              value={form.password}
-              onChange={onChange}
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <div className="space-y-2">
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-                {error}
-              </p>
-              {emailNotVerified && (
-                <Button
-                  type="button"
-                  onClick={handleResendOTP}
-                  disabled={resendLoading}
-                  variant="outline"
-                  className="w-full"
-                >
-                  {resendLoading ? "Sending code..." : "Resend verification code"}
-                </Button>
-              )}
+          {successMessage && (
+            <div className="mt-4 text-sm text-green-600 bg-green-50 border border-green-200 rounded px-3 py-2">
+              {successMessage}
             </div>
           )}
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? "Signing in..." : "Sign In"}
-          </Button>
-        </form>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <Label htmlFor="identifier">Username or Email</Label>
+              <Input
+                id="identifier"
+                name="identifier"
+                value={form.identifier}
+                onChange={onChange}
+                placeholder="johndoe or you@example.com"
+              />
+            </div>
 
-        <p className="mt-4 text-sm text-center text-slate-600">
-          Don't have an account?{" "}
-          <Link to="/signup" className="text-teal-700 hover:underline">
-            Sign up
-          </Link>
-        </p>
-      </Card>
-    </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-teal-600 hover:text-teal-700 font-medium"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                value={form.password}
+                onChange={onChange}
+                placeholder="••••••••"
+              />
+            </div>
+
+            {error && (
+              <div className="space-y-2">
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                  {error}
+                </p>
+                {emailNotVerified && (
+                  <Button
+                    type="button"
+                    onClick={handleResendOTP}
+                    disabled={resendLoading}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {resendLoading ? "Sending code..." : "Resend verification code"}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading ? "Signing in..." : "Sign In"}
+            </Button>
+          </form>
+
+          <p className="mt-4 text-sm text-center text-slate-600">
+            Don't have an account?{" "}
+            <Link to="/signup" className="text-teal-700 hover:underline">
+              Sign up
+            </Link>
+          </p>
+        </Card>
+      </div>
+    </>
   );
 }

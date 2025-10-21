@@ -19,6 +19,7 @@ import {
 } from "../lib/coins";
 import { useURLValidation } from "../hooks/useURLValidation";
 import { VALIDATION_STATE, getValidationIcon, getValidationStyles } from "../lib/urlValidator";
+import PageSEO from "../components/PageSEO";
 
 const isValidUrl = (u) => {
   try {
@@ -311,26 +312,30 @@ export default function Promote() {
 
   return (
     <div>
+      <PageSEO
+        title="Promote Your Website — Free Real Visitors | EngageSwap"
+        description="Create a campaign with watch timer and a 5-question quiz to ensure real engagement. Pay with coins, not cash."
+        canonicalPath="/promote"
+      />
+
       {/* Tab Navigation */}
       <div className="mb-6 border-b border-slate-200">
         <div className="flex gap-1">
           <button
             onClick={() => setActiveTab("create")}
-            className={`px-6 py-3 font-semibold transition-colors relative ${
-              activeTab === "create"
+            className={`px-6 py-3 font-semibold transition-colors relative ${activeTab === "create"
                 ? "text-teal-600 border-b-2 border-teal-600"
                 : "text-slate-600 hover:text-slate-800"
-            }`}
+              }`}
           >
             Create Campaign
           </button>
           <button
             onClick={() => setActiveTab("campaigns")}
-            className={`px-6 py-3 font-semibold transition-colors relative ${
-              activeTab === "campaigns"
+            className={`px-6 py-3 font-semibold transition-colors relative ${activeTab === "campaigns"
                 ? "text-teal-600 border-b-2 border-teal-600"
                 : "text-slate-600 hover:text-slate-800"
-            }`}
+              }`}
           >
             Your Campaigns
             {campaigns.length > 0 && (
@@ -351,180 +356,180 @@ export default function Promote() {
           </p>
 
           <form onSubmit={submit} className="mt-6 space-y-4">
-          <div>
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" name="title" value={form.title} onChange={onChange} placeholder="My Product Landing" />
-          </div>
+            <div>
+              <Label htmlFor="title">Title</Label>
+              <Input id="title" name="title" value={form.title} onChange={onChange} placeholder="My Product Landing" />
+            </div>
 
-          <div>
-            <Label htmlFor="url">Target URL</Label>
-            <div className="relative">
-              <Input
-                id="url"
-                name="url"
-                value={form.url}
-                onChange={onChange}
-                placeholder="https://example.com"
-                className={getValidationStyles(urlValidation.state)}
-              />
-              {urlValidation.state !== VALIDATION_STATE.IDLE && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xl">
-                  {getValidationIcon(urlValidation.state)}
+            <div>
+              <Label htmlFor="url">Target URL</Label>
+              <div className="relative">
+                <Input
+                  id="url"
+                  name="url"
+                  value={form.url}
+                  onChange={onChange}
+                  placeholder="https://example.com"
+                  className={getValidationStyles(urlValidation.state)}
+                />
+                {urlValidation.state !== VALIDATION_STATE.IDLE && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xl">
+                    {getValidationIcon(urlValidation.state)}
+                  </div>
+                )}
+              </div>
+
+              {/* Validation Feedback */}
+              {urlValidation.state === VALIDATION_STATE.VERIFYING && (
+                <div className="mt-2 flex items-center gap-2 text-sm text-blue-700">
+                  <div className="animate-spin">🔍</div>
+                  <span>Verifying URL...</span>
                 </div>
               )}
-            </div>
 
-            {/* Validation Feedback */}
-            {urlValidation.state === VALIDATION_STATE.VERIFYING && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-blue-700">
-                <div className="animate-spin">🔍</div>
-                <span>Verifying URL...</span>
-              </div>
-            )}
+              {urlValidation.isValid && (
+                <div className="mt-2 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+                  <span>✅</span>
+                  <span className="font-medium">URL verified and accessible</span>
+                </div>
+              )}
 
-            {urlValidation.isValid && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
-                <span>✅</span>
-                <span className="font-medium">URL verified and accessible</span>
-              </div>
-            )}
-
-            {urlValidation.isInvalid && urlValidation.result && (
-              <div className="mt-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-lg">❌</span>
-                  <div className="flex-1">
-                    <p className="font-semibold">URL validation failed</p>
-                    <p className="mt-1">{urlValidation.result.message}</p>
-                    {urlValidation.result.rejectionReason && (
-                      <p className="mt-1 text-xs text-red-600 font-mono">
-                        Code: {urlValidation.result.rejectionReason}
-                      </p>
-                    )}
+              {urlValidation.isInvalid && urlValidation.result && (
+                <div className="mt-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg">❌</span>
+                    <div className="flex-1">
+                      <p className="font-semibold">URL validation failed</p>
+                      <p className="mt-1">{urlValidation.result.message}</p>
+                      {urlValidation.result.rejectionReason && (
+                        <p className="mt-1 text-xs text-red-600 font-mono">
+                          Code: {urlValidation.result.rejectionReason}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {urlValidation.shouldRetry && urlValidation.result && (
-              <div className="mt-2 text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-lg">⚠️</span>
-                  <div className="flex-1">
-                    <p className="font-semibold">Unable to verify URL</p>
-                    <p className="mt-1">{urlValidation.result.message}</p>
-                    <button
-                      type="button"
-                      onClick={urlValidation.validateNow}
-                      className="mt-2 text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded"
-                    >
-                      Retry Validation
-                    </button>
+              {urlValidation.shouldRetry && urlValidation.result && (
+                <div className="mt-2 text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg">⚠️</span>
+                    <div className="flex-1">
+                      <p className="font-semibold">Unable to verify URL</p>
+                      <p className="mt-1">{urlValidation.result.message}</p>
+                      <button
+                        type="button"
+                        onClick={urlValidation.validateNow}
+                        className="mt-2 text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded"
+                      >
+                        Retry Validation
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <p className="mt-1 text-xs text-slate-500">
-              URL will be automatically validated for security and accessibility
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="coins_per_visit">Base Coins per Visit</Label>
-              <Input
-                id="coins_per_visit"
-                name="coins_per_visit"
-                type="number"
-                min={1}
-                step="0.1"
-                value={form.coins_per_visit}
-                onChange={onChange}
-              />
-              <p className="text-xs text-slate-500 mt-1">Minimum reward amount</p>
-            </div>
-            <div>
-              <Label htmlFor="total_clicks">No of clicks</Label>
-              <Input
-                id="total_clicks"
-                name="total_clicks"
-                type="number"
-                min={1}
-                value={form.total_clicks}
-                onChange={onChange}
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="watch_duration">Required Watch Duration (seconds)</Label>
-            <select
-              id="watch_duration"
-              name="watch_duration"
-              value={form.watch_duration}
-              onChange={onChange}
-              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
-            >
-              {WATCH_DURATION_OPTIONS.map((duration) => (
-                <option key={duration} value={duration}>
-                  {duration}s
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500 mt-1">
-              Longer watch time increases cost by +5 coins per extra 15s beyond 30s.
-            </p>
-          </div>
-
-          {/* Engagement Summary Panel */}
-          <div className="bg-gradient-to-br from-teal-50 to-sky-50 border border-teal-200 rounded-lg p-4 space-y-2">
-            <h4 className="font-semibold text-teal-900">Engagement Summary</h4>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-slate-600">Duration Selected:</p>
-                <p className="font-semibold text-teal-800">{form.watch_duration}s</p>
-              </div>
-              <div>
-                <p className="text-slate-600">Steps:</p>
-                <p className="font-semibold text-teal-800">{engagementSummary.steps}</p>
-              </div>
-              <div>
-                <p className="text-slate-600">Extra Cost:</p>
-                <p className="font-semibold text-teal-800">+{engagementSummary.extraCost} coins</p>
-              </div>
-              <div>
-                <p className="text-slate-600">Base Cost:</p>
-                <p className="font-semibold text-teal-800">{formatCoinsValue(engagementSummary.baseCost)}</p>
-              </div>
-            </div>
-            <div className="pt-2 border-t border-teal-200">
-              <div className="flex justify-between items-center">
-                <p className="text-slate-700 font-medium">Total Campaign Cost:</p>
-                <p className="text-xl font-bold text-teal-900">{formatCoins(engagementSummary.totalCampaignCost)}</p>
-              </div>
-              <p className="text-xs text-slate-600 mt-1">
-                You will be charged only when a visit completes the required watch time.
+              <p className="mt-1 text-xs text-slate-500">
+                URL will be automatically validated for security and accessibility
               </p>
             </div>
-          </div>
 
-          {/* Question Authoring */}
-          <QuestionAuthoring
-            questions={form.questions}
-            onChange={handleQuestionsChange}
-            error={questionError}
-          />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="coins_per_visit">Base Coins per Visit</Label>
+                <Input
+                  id="coins_per_visit"
+                  name="coins_per_visit"
+                  type="number"
+                  min={1}
+                  step="0.1"
+                  value={form.coins_per_visit}
+                  onChange={onChange}
+                />
+                <p className="text-xs text-slate-500 mt-1">Minimum reward amount</p>
+              </div>
+              <div>
+                <Label htmlFor="total_clicks">No of clicks</Label>
+                <Input
+                  id="total_clicks"
+                  name="total_clicks"
+                  type="number"
+                  min={1}
+                  value={form.total_clicks}
+                  onChange={onChange}
+                />
+              </div>
+            </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+            <div>
+              <Label htmlFor="watch_duration">Required Watch Duration (seconds)</Label>
+              <select
+                id="watch_duration"
+                name="watch_duration"
+                value={form.watch_duration}
+                onChange={onChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+              >
+                {WATCH_DURATION_OPTIONS.map((duration) => (
+                  <option key={duration} value={duration}>
+                    {duration}s
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500 mt-1">
+                Longer watch time increases cost by +5 coins per extra 15s beyond 30s.
+              </p>
+            </div>
 
-          <div className="pt-2">
-            <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : "Save Campaign"}
-            </Button>
-          </div>
-        </form>
-      </Card>
+            {/* Engagement Summary Panel */}
+            <div className="bg-gradient-to-br from-teal-50 to-sky-50 border border-teal-200 rounded-lg p-4 space-y-2">
+              <h4 className="font-semibold text-teal-900">Engagement Summary</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-slate-600">Duration Selected:</p>
+                  <p className="font-semibold text-teal-800">{form.watch_duration}s</p>
+                </div>
+                <div>
+                  <p className="text-slate-600">Steps:</p>
+                  <p className="font-semibold text-teal-800">{engagementSummary.steps}</p>
+                </div>
+                <div>
+                  <p className="text-slate-600">Extra Cost:</p>
+                  <p className="font-semibold text-teal-800">+{engagementSummary.extraCost} coins</p>
+                </div>
+                <div>
+                  <p className="text-slate-600">Base Cost:</p>
+                  <p className="font-semibold text-teal-800">{formatCoinsValue(engagementSummary.baseCost)}</p>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-teal-200">
+                <div className="flex justify-between items-center">
+                  <p className="text-slate-700 font-medium">Total Campaign Cost:</p>
+                  <p className="text-xl font-bold text-teal-900">{formatCoins(engagementSummary.totalCampaignCost)}</p>
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  You will be charged only when a visit completes the required watch time.
+                </p>
+              </div>
+            </div>
+
+            {/* Question Authoring */}
+            <QuestionAuthoring
+              questions={form.questions}
+              onChange={handleQuestionsChange}
+              error={questionError}
+            />
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            <div className="pt-2">
+              <Button type="submit" disabled={loading}>
+                {loading ? "Saving..." : "Save Campaign"}
+              </Button>
+            </div>
+          </form>
+        </Card>
       )}
 
       {activeTab === "campaigns" && (
@@ -533,121 +538,118 @@ export default function Promote() {
           <p className="mt-2 text-slate-600">
             Manage and monitor your active and finished campaigns.
           </p>
-        {campaigns.length === 0 ? (
-          <p className="mt-4 text-slate-600">No campaigns yet. Switch to "Create Campaign" tab to create your first one.</p>
-        ) : (
-          <ul className="mt-4 space-y-3">
-            {campaigns.map((c) => {
-              const valueTier = getValueTier(c.coins_per_visit);
-              const totalBudget = calculateTotalBudgetForCampaign(c);
+          {campaigns.length === 0 ? (
+            <p className="mt-4 text-slate-600">No campaigns yet. Switch to "Create Campaign" tab to create your first one.</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {campaigns.map((c) => {
+                const valueTier = getValueTier(c.coins_per_visit);
+                const totalBudget = calculateTotalBudgetForCampaign(c);
 
-              return (
-                <li key={c.id} className="rounded-lg border p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      {/* Title and Badges */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="text-lg font-semibold">{c.title}</div>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded ${
-                            c.is_finished
-                              ? "bg-green-100 text-green-800"
-                              : c.is_paused
-                              ? "bg-slate-200 text-slate-700"
-                              : "bg-teal-100 text-teal-800"
-                          }`}
-                        >
-                          {c.is_finished ? "Finished" : c.is_paused ? "Paused" : "Active"}
-                        </span>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded border ${valueTier.color}`}>
-                          {valueTier.label} VALUE
-                        </span>
-                        {c.created_at && (
-                          <span className="text-xs text-slate-400">
-                            • Created {formatTimeAgo(c.created_at)}
+                return (
+                  <li key={c.id} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        {/* Title and Badges */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="text-lg font-semibold">{c.title}</div>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded ${c.is_finished
+                                ? "bg-green-100 text-green-800"
+                                : c.is_paused
+                                  ? "bg-slate-200 text-slate-700"
+                                  : "bg-teal-100 text-teal-800"
+                              }`}
+                          >
+                            {c.is_finished ? "Finished" : c.is_paused ? "Paused" : "Active"}
                           </span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded border ${valueTier.color}`}>
+                            {valueTier.label} VALUE
+                          </span>
+                          {c.created_at && (
+                            <span className="text-xs text-slate-400">
+                              • Created {formatTimeAgo(c.created_at)}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* URL */}
+                        <a
+                          href={c.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm text-teal-700 break-all hover:underline"
+                        >
+                          {c.url}
+                        </a>
+
+                        {/* Stats */}
+                        <div className="mt-2 flex items-center gap-4 text-sm text-slate-600 flex-wrap">
+                          <span className="font-semibold text-teal-700">
+                            +{formatCoinsValue(c.coins_per_visit)} coins
+                          </span>
+                          <span>•</span>
+                          <span>{c.watch_duration || 30}s watch required</span>
+                          <span>•</span>
+                          <span>{c.clicks_served}/{c.total_clicks} completed</span>
+                          <span>•</span>
+                          <span className="text-xs text-slate-500">
+                            Total Budget: {formatCoinsValue(totalBudget)}
+                          </span>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="mt-2 w-full bg-slate-200 rounded-full h-2">
+                          <div
+                            className="bg-teal-600 h-2 rounded-full transition-all"
+                            style={{ width: `${(c.clicks_served / c.total_clicks) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-start gap-2 shrink-0 flex-wrap">
+                        {c.is_finished ? (
+                          <Button
+                            onClick={() => handleReAdd(c)}
+                            className="text-xs px-2 py-1 h-auto bg-teal-600 hover:bg-teal-700 text-white"
+                          >
+                            Re-add
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => handlePauseResume(c)}
+                            className={`text-xs px-2 py-1 h-auto text-white ${c.is_paused
+                                ? "bg-teal-600 hover:bg-teal-700"
+                                : "bg-amber-500 hover:bg-amber-400"
+                              }`}
+                          >
+                            {c.is_paused ? "Resume" : "Pause"}
+                          </Button>
                         )}
-                      </div>
-
-                      {/* URL */}
-                      <a
-                        href={c.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm text-teal-700 break-all hover:underline"
-                      >
-                        {c.url}
-                      </a>
-
-                      {/* Stats */}
-                      <div className="mt-2 flex items-center gap-4 text-sm text-slate-600 flex-wrap">
-                        <span className="font-semibold text-teal-700">
-                          +{formatCoinsValue(c.coins_per_visit)} coins
-                        </span>
-                        <span>•</span>
-                        <span>{c.watch_duration || 30}s watch required</span>
-                        <span>•</span>
-                        <span>{c.clicks_served}/{c.total_clicks} completed</span>
-                        <span>•</span>
-                        <span className="text-xs text-slate-500">
-                          Total Budget: {formatCoinsValue(totalBudget)}
-                        </span>
-                      </div>
-
-                      {/* Progress bar */}
-                      <div className="mt-2 w-full bg-slate-200 rounded-full h-2">
-                        <div
-                          className="bg-teal-600 h-2 rounded-full transition-all"
-                          style={{ width: `${(c.clicks_served / c.total_clicks) * 100}%` }}
-                        />
+                        <Button
+                          onClick={() => handleDelete(c.id, c.title)}
+                          className="text-xs px-2 py-1 h-auto bg-red-400 hover:bg-red-500 text-white"
+                        >
+                          Delete
+                        </Button>
                       </div>
                     </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex items-start gap-2 shrink-0 flex-wrap">
-                      {c.is_finished ? (
-                        <Button
-                          onClick={() => handleReAdd(c)}
-                          className="text-xs px-2 py-1 h-auto bg-teal-600 hover:bg-teal-700 text-white"
-                        >
-                          Re-add
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={() => handlePauseResume(c)}
-                          className={`text-xs px-2 py-1 h-auto text-white ${
-                            c.is_paused
-                              ? "bg-teal-600 hover:bg-teal-700"
-                              : "bg-amber-500 hover:bg-amber-400"
-                          }`}
-                        >
-                          {c.is_paused ? "Resume" : "Pause"}
-                        </Button>
-                      )}
-                      <Button
-                        onClick={() => handleDelete(c.id, c.title)}
-                        className="text-xs px-2 py-1 h-auto bg-red-400 hover:bg-red-500 text-white"
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Card>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
       )}
 
       {/* Beautiful Toast Notification */}
       {showToast && (
         <div
-          className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 z-50 animate-slide-up ${
-            toastType === "deduction"
+          className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 z-50 animate-slide-up ${toastType === "deduction"
               ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white"
               : "bg-gradient-to-r from-emerald-500 to-teal-600 text-white"
-          }`}
+            }`}
         >
           <div className="text-3xl">
             {toastType === "deduction" ? "💰" : "🎉"}

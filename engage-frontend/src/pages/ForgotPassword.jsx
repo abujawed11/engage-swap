@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Label from '../components/ui/Label';
 import { API_BASE } from '../lib/api';
+import PageSEO from '../components/PageSEO';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -47,45 +48,55 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <Card className="w-full max-w-md">
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-slate-900">Forgot Password</h1>
-          <p className="text-slate-600 mt-2">
-            Enter your username or email and we'll send you a verification code
-          </p>
-        </div>
+    <>
+      <PageSEO
+        title="Reset Password | EngageSwap"
+        description="Reset your EngageSwap account password."
+        canonicalPath="/reset-password"
+        robots="noindex,noarchive,follow"
+      />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="identifier">Username or Email</Label>
-            <Input
-              id="identifier"
-              type="text"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="Enter username or email"
-              disabled={loading}
-            />
+
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-slate-900">Forgot Password</h1>
+            <p className="text-slate-600 mt-2">
+              Enter your username or email and we'll send you a verification code
+            </p>
           </div>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-              <p className="text-sm text-red-700">{error}</p>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="identifier">Username or Email</Label>
+              <Input
+                id="identifier"
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="Enter username or email"
+                disabled={loading}
+              />
             </div>
-          )}
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Sending...' : 'Send Reset Code'}
-          </Button>
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
 
-          <div className="text-center text-sm">
-            <Link to="/login" className="text-teal-600 hover:text-teal-700 font-medium">
-              ← Back to Login
-            </Link>
-          </div>
-        </form>
-      </Card>
-    </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Sending...' : 'Send Reset Code'}
+            </Button>
+
+            <div className="text-center text-sm">
+              <Link to="/login" className="text-teal-600 hover:text-teal-700 font-medium">
+                ← Back to Login
+              </Link>
+            </div>
+          </form>
+        </Card>
+      </div>
+    </>
   );
 }

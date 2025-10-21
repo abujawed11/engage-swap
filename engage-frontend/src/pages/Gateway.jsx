@@ -7,6 +7,7 @@ import QuizModal from "../components/QuizModal";
 import { earn as earnAPI } from "../lib/api";
 import { useApp } from "../lib/appState";
 import { formatCoins, formatCoinsValue, calculateActualCoinsPerVisit, roundCoins } from "../lib/coins";
+import PageSEO from "../components/PageSEO";
 
 const HEARTBEAT_INTERVAL = 5000; // Send metrics every 5 seconds
 
@@ -23,10 +24,10 @@ export default function Gateway() {
   // Calculate the actual coins the visitor will earn (includes duration bonus)
   const actualCoinsToEarn = campaign
     ? roundCoins(calculateActualCoinsPerVisit(
-        campaign.coins_per_visit,
-        campaign.watch_duration || 30,
-        campaign.total_clicks
-      ))
+      campaign.coins_per_visit,
+      campaign.watch_duration || 30,
+      campaign.total_clicks
+    ))
     : 0;
 
   // Time tracking
@@ -362,191 +363,169 @@ export default function Gateway() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 space-y-6">
-        {/* Header */}
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800">Visit in Progress</h1>
-              <p className="text-sm text-slate-600 mt-1">
-                Campaign: <span className="font-semibold text-teal-700">{campaign.title}</span>
-              </p>
-            </div>
-            <Button onClick={handleCancel} className="">
-              Cancel Visit
-            </Button>
-          </div>
-        </Card>
+    <>
+      <PageSEO
+        title="Processing Payment | EngageSwap"
+        description="Please wait while we process your payment."
+        canonicalPath="/gateway"
+        robots="noindex,noarchive,follow"
+      />
 
-        {/* Progress Card */}
-        <Card>
-          <div className="space-y-4">
-            {/* Timer and Progress */}
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-4xl font-bold text-teal-700">
-                  {activeTime}s
-                </div>
-                <div className="text-sm text-slate-600 mt-1">
-                  Active time / {requiredDuration}s required
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-slate-800">
-                  {quizResult ? formatCoins(quizResult.reward_amount) : formatCoins(actualCoinsToEarn)}
-                </div>
-                <div className="text-sm text-slate-600">
-                  {quizCompleted
-                    ? quizResult?.passed
-                      ? `${quizResult.correct_count}/5 correct (${Math.round(quizResult.multiplier * 100)}%)`
-                      : "Failed quiz"
-                    : isComplete
-                      ? "Take quiz to claim"
-                      : "Max possible (100%)"}
-                </div>
-              </div>
-            </div>
 
-            {/* Progress Bar */}
-            <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-teal-600 to-sky-600 transition-all duration-300"
-                style={{ width: `${Math.min(progress, 100)}%` }}
-              />
-            </div>
-
-            {/* Status Message */}
-            <div className="text-center">
-              {isPaused && popupClosed && !isComplete && (
-                <p className="text-red-700 font-medium">⚠️ Popup closed - Please reopen to continue</p>
-              )}
-              {isPaused && !popupClosed && popupOpen && !isComplete && (
-                <p className="text-amber-700 font-medium">⏸ Paused - Switch to the popup window to start counting</p>
-              )}
-              {!isPaused && !isComplete && popupOpen && (
-                <p className="text-teal-700 font-medium">
-                  ✅ Counting! Stay on the popup for {requiredDuration - activeTime}s more
-                </p>
-              )}
-              {isComplete && !quizCompleted && (
-                <p className="text-blue-700 font-medium text-lg">📝 Watch complete! Take the quiz to claim your reward</p>
-              )}
-              {quizCompleted && quizResult?.passed && (
-                <p className="text-green-700 font-medium text-lg">
-                  🎉 Quiz passed! You earned {formatCoins(quizResult.reward_amount)} ({Math.round(quizResult.multiplier * 100)}% reward)
-                </p>
-              )}
-              {quizCompleted && !quizResult?.passed && (
-                <p className="text-red-700 font-medium text-lg">❌ Quiz failed. Need at least 3 correct answers.</p>
-              )}
-            </div>
-          </div>
-        </Card>
-
-        {/* Activity Tracking Card */}
-        {/* <Card>
-          <h3 className="text-lg font-semibold mb-3">Activity Tracking</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-slate-50 rounded-lg">
-              <div className="text-2xl font-bold text-teal-700">{mouseMovements}</div>
-              <div className="text-xs text-slate-600 mt-1">Mouse Movements</div>
-            </div>
-            <div className="text-center p-3 bg-slate-50 rounded-lg">
-              <div className="text-2xl font-bold text-teal-700">
-                {popupOpen && !popupClosed ? "✓" : "✗"}
-              </div>
-              <div className="text-xs text-slate-600 mt-1">Popup Open</div>
-            </div>
-            <div className="text-center p-3 bg-slate-50 rounded-lg">
-              <div className="text-2xl font-bold text-teal-700">
-                {verificationPassed ? "✓" : "✗"}
-              </div>
-              <div className="text-xs text-slate-600 mt-1">Human Verified</div>
-            </div>
-          </div>
-
-          {rewardTier === "passive" && !isComplete && (
-            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-              <p className="text-sm text-amber-800">
-                💡 <strong>Tip:</strong> Complete the human verification challenge when it appears to get{" "}
-                <strong>100% reward</strong> instead of 50%! Only {ACTIVE_TIME_THRESHOLD - activeTime}s more needed.
-              </p>
-            </div>
-          )}
-        </Card> */}
-
-        {/* Popup Control Card */}
-        {!isComplete && (
+      <div className="min-h-screen bg-slate-50 py-8">
+        <div className="max-w-4xl mx-auto px-4 space-y-6">
+          {/* Header */}
           <Card>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold">Campaign Popup</h3>
+                <h1 className="text-2xl font-bold text-slate-800">Visit in Progress</h1>
                 <p className="text-sm text-slate-600 mt-1">
-                  {popupOpen && !popupClosed ? (
-                    <span className="text-green-600">✓ Popup is open and being tracked</span>
-                  ) : (
-                    <span className="text-red-600">✗ Popup is closed</span>
-                  )}
+                  Campaign: <span className="font-semibold text-teal-700">{campaign.title}</span>
                 </p>
               </div>
-              <Button onClick={handleReopenPopup} className="">
-                {popupOpen && !popupClosed ? "Focus Popup" : "Reopen Popup"}
+              <Button onClick={handleCancel} className="">
+                Cancel Visit
               </Button>
             </div>
           </Card>
-        )}
 
-        {/* Error Display */}
-        {error && (
+          {/* Progress Card */}
           <Card>
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-              <p className="text-sm text-red-700">{error}</p>
+            <div className="space-y-4">
+              {/* Timer and Progress */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-4xl font-bold text-teal-700">
+                    {activeTime}s
+                  </div>
+                  <div className="text-sm text-slate-600 mt-1">
+                    Active time / {requiredDuration}s required
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-slate-800">
+                    {quizResult ? formatCoins(quizResult.reward_amount) : formatCoins(actualCoinsToEarn)}
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    {quizCompleted
+                      ? quizResult?.passed
+                        ? `${quizResult.correct_count}/5 correct (${Math.round(quizResult.multiplier * 100)}%)`
+                        : "Failed quiz"
+                      : isComplete
+                        ? "Take quiz to claim"
+                        : "Max possible (100%)"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-teal-600 to-sky-600 transition-all duration-300"
+                  style={{ width: `${Math.min(progress, 100)}%` }}
+                />
+              </div>
+
+              {/* Status Message */}
+              <div className="text-center">
+                {isPaused && popupClosed && !isComplete && (
+                  <p className="text-red-700 font-medium">⚠️ Popup closed - Please reopen to continue</p>
+                )}
+                {isPaused && !popupClosed && popupOpen && !isComplete && (
+                  <p className="text-amber-700 font-medium">⏸ Paused - Switch to the popup window to start counting</p>
+                )}
+                {!isPaused && !isComplete && popupOpen && (
+                  <p className="text-teal-700 font-medium">
+                    ✅ Counting! Stay on the popup for {requiredDuration - activeTime}s more
+                  </p>
+                )}
+                {isComplete && !quizCompleted && (
+                  <p className="text-blue-700 font-medium text-lg">📝 Watch complete! Take the quiz to claim your reward</p>
+                )}
+                {quizCompleted && quizResult?.passed && (
+                  <p className="text-green-700 font-medium text-lg">
+                    🎉 Quiz passed! You earned {formatCoins(quizResult.reward_amount)} ({Math.round(quizResult.multiplier * 100)}% reward)
+                  </p>
+                )}
+                {quizCompleted && !quizResult?.passed && (
+                  <p className="text-red-700 font-medium text-lg">❌ Quiz failed. Need at least 3 correct answers.</p>
+                )}
+              </div>
             </div>
           </Card>
-        )}
 
-        {/* Claim Button */}
-        <Card>
-          {quizCompleted && !quizResult?.passed ? (
-            <Button
-              onClick={handleCancel}
-              className="w-full py-4"
-            >
-              Return to Campaigns
-            </Button>
-          ) : (
-            <Button
-              onClick={handleClaim}
-              disabled={!canClaim || isClaiming}
-              className="w-full py-4"
-            >
-              {isClaiming
-                ? "Claiming..."
-                : canClaim
-                  ? `Claim Reward (${formatCoinsValue(quizResult?.reward_amount || 0)} coins)`
-                  : !isComplete
-                    ? `Wait ${requiredDuration - activeTime}s to unlock quiz`
-                    : !quizCompleted
-                      ? "Complete the quiz first"
-                      : "Claim your reward!"}
-            </Button>
+          {/* Popup Control Card */}
+          {!isComplete && (
+            <Card>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Campaign Popup</h3>
+                  <p className="text-sm text-slate-600 mt-1">
+                    {popupOpen && !popupClosed ? (
+                      <span className="text-green-600">✓ Popup is open and being tracked</span>
+                    ) : (
+                      <span className="text-red-600">✗ Popup is closed</span>
+                    )}
+                  </p>
+                </div>
+                <Button onClick={handleReopenPopup} className="">
+                  {popupOpen && !popupClosed ? "Focus Popup" : "Reopen Popup"}
+                </Button>
+              </div>
+            </Card>
           )}
-        </Card>
 
-        {/* Quiz Modal */}
-        {showQuiz && (
-          <QuizModal
-            campaignId={campaign.id}
-            verificationToken={verificationToken}
-            onComplete={handleQuizComplete}
-            onError={handleQuizError}
-            onCancel={handleQuizCancel}
-            popupRef={popupRef}
-            campaignUrl={campaign.url}
-          />
-        )}
+          {/* Error Display */}
+          {error && (
+            <Card>
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </Card>
+          )}
+
+          {/* Claim Button */}
+          <Card>
+            {quizCompleted && !quizResult?.passed ? (
+              <Button
+                onClick={handleCancel}
+                className="w-full py-4"
+              >
+                Return to Campaigns
+              </Button>
+            ) : (
+              <Button
+                onClick={handleClaim}
+                disabled={!canClaim || isClaiming}
+                className="w-full py-4"
+              >
+                {isClaiming
+                  ? "Claiming..."
+                  : canClaim
+                    ? `Claim Reward (${formatCoinsValue(quizResult?.reward_amount || 0)} coins)`
+                    : !isComplete
+                      ? `Wait ${requiredDuration - activeTime}s to unlock quiz`
+                      : !quizCompleted
+                        ? "Complete the quiz first"
+                        : "Claim your reward!"}
+              </Button>
+            )}
+          </Card>
+
+          {/* Quiz Modal */}
+          {showQuiz && (
+            <QuizModal
+              campaignId={campaign.id}
+              verificationToken={verificationToken}
+              onComplete={handleQuizComplete}
+              onError={handleQuizError}
+              onCancel={handleQuizCancel}
+              popupRef={popupRef}
+              campaignUrl={campaign.url}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
